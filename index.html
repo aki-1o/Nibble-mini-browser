@@ -1,55 +1,458 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AA Mini Browser</title>
+  <title>Nibble</title>
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
   <style>
-    html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
-    /* The page renders in a WebContentsView positioned by main.js below this bar.
-       Keep the shell UI confined to the top so it doesn't cover the page. */
-    #bar {
-      display: flex; gap: 6px; align-items: center; padding: 8px;
-      background: #f0f0f0; border-bottom: 1px solid #ccc;
+    :root {
+      --chrome:   #f2f1f4;
+      --line:     #cfcdd4;
+      --ink:      #2a2730;
+      --muted:    #6f6b77;
+      --accent:   #7c5cd6;
+      --accent-d: #6a4ac4;
+      --code-bg:  #1f1d2b;
+      --code-ink: #e6e3f0;
+      --ok:       #1a8a4a;
+      --warn:     #b26a00;
+      --bad:      #c0392b;
+    }
+
+    html, body {
+      margin: 0; height: 100%;
+      font-family: system-ui, "Segoe UI", sans-serif;
+      color: var(--ink);
+      overflow: hidden;
+    }
+    body { display: flex; flex-direction: column; }
+    [hidden] { display: none !important; }
+
+    button {
+      font: inherit; cursor: pointer; color: var(--ink);
+      border: 1px solid var(--line); background: #fff;
+      border-radius: 6px; padding: 6px 10px;
+    }
+    button:hover { background: #e9e7ee; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 1px;
+    }
+    button.primary {
+      background: var(--accent); border-color: var(--accent-d); color: #fff; font-weight: 600;
+    }
+    button.primary:hover { background: var(--accent-d); }
+    button.primary:disabled { opacity: .6; cursor: default; }
+    button.icon { padding: 6px 9px; }
+    button.tiny { padding: 3px 7px; font-size: 12px; }
+
+    input, select, textarea {
+      font: inherit; color: var(--ink); background: #fff;
+      border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+    }
+    input:disabled { background: #eceaf0; color: var(--muted); }
+
+    /* ---------- top chrome ---------- */
+    #chrome { flex: 0 0 auto; background: var(--chrome); border-bottom: 1px solid var(--line); }
+    #bar { display: flex; gap: 6px; align-items: center; padding: 8px; box-sizing: border-box; }
+    #favicon { width: 24px; height: 24px; flex: 0 0 auto; image-rendering: pixelated; }
+    #favicon.spinning { animation: spin .8s linear infinite; }
+    @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+    #urlWrap { flex: 1; display: flex; position: relative; }
+    #url { flex: 1; font-size: 13px; border-radius: 6px 0 0 6px; border-right: none; }
+    #histBtn { border-radius: 0 6px 6px 0; }
+
+    /* split button: label rewrites+opens, caret opens the target config */
+    #rewriteGroup { display: flex; flex: 0 0 auto; }
+    #rewriteOpen {
+      border-radius: 6px 0 0 6px; border-right: none;
+      white-space: nowrap; font-size: 12px;
+    }
+    #rewriteConfig { border-radius: 0 6px 6px 0; padding: 6px 6px; font-size: 10px; }
+
+    #rewritePop {
+      position: fixed; z-index: 90; width: 320px;
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.2); padding: 10px;
+    }
+    #rewritePop .rwRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    #rewritePop .rwRow > label { flex: 0 0 62px; font-size: 12px; color: var(--muted); }
+    #rewritePop .rwRow > select, #rewritePop .rwRow > input {
+      flex: 1; min-width: 0; font-size: 12px;
+    }
+    #rewritePop .rwRow > input { font-family: ui-monospace, Consolas, monospace; }
+    #rewritePop .rwActions { justify-content: flex-end; }
+    #rewritePop .rwActions button { font-size: 12px; }
+    #rewritePop .rwActions button:disabled { opacity: .5; cursor: default; }
+    #rewritePop .rwActions button:disabled:hover { background: #fff; }
+    #rewritePop .hint { margin: 0; }
+
+    #histPanel {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      max-height: 320px; overflow: auto; padding: 4px;
+    }
+    #histPanel .histHead {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 6px; font-size: 12px; color: var(--muted);
+    }
+    #histPanel .histHead .spacer { flex: 1; }
+    .histItem { display: flex; align-items: center; gap: 4px; }
+    .histItem > button.pick {
+      flex: 1; text-align: left; border: none; background: none; border-radius: 4px;
+      font-size: 12px; padding: 5px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .histItem > button.pick:hover { background: #f0eef5; }
+    .histEmpty { padding: 8px 6px; font-size: 12px; color: var(--muted); }
+
+    #status { padding: 2px 8px; font-size: 12px; color: var(--bad); background: #fff5f5; display: none; }
+    #status.show { display: block; }
+
+    /* ---------- shell: sidebar + (native page view fills the rest) ---------- */
+    #shell { flex: 1; display: flex; min-height: 0; position: relative; }
+    #shell.right { flex-direction: row-reverse; }
+
+    #sidebar {
+      flex: 0 0 auto; width: 460px; min-width: 300px;
+      display: flex; flex-direction: column; min-height: 0;
+      background: var(--chrome); border-right: 1px solid var(--line);
       box-sizing: border-box;
     }
-    #favicon {
-      width: 24px; height: 24px; flex: 0 0 auto;
-      image-rendering: pixelated;   /* keep the pixel-art crisp */
+    #shell.right #sidebar { border-right: none; border-left: 1px solid var(--line); }
+
+    #dragbar { flex: 0 0 auto; width: 6px; cursor: col-resize; background: var(--line); }
+    #dragbar:hover, #dragbar.active { background: var(--accent); }
+
+    /* Sits exactly where the native page view is drawn. Normally covered by it;
+       visible only while the page view is hidden for an overlay or a drag. */
+    #pageArea {
+      flex: 1; min-width: 0; display: flex;
+      align-items: center; justify-content: center;
+      background: #fbfbfd;
     }
-    /* Spin while a page is loading/refreshing. */
-    #favicon.spinning { animation: spin 0.8s linear infinite; }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
+    #pageHint { font-size: 13px; color: var(--muted); }
+
+    #sbHead {
+      display: flex; align-items: center; gap: 6px; padding: 8px;
+      border-bottom: 1px solid var(--line);
     }
-    #bar button {
-      padding: 6px 12px; cursor: pointer; border: 1px solid #bbb;
-      background: #fff; border-radius: 4px;
+    #sbHead .sbTitle { font-weight: 700; font-size: 13px; }
+    #sbHead .spacer { flex: 1; }
+
+    .reqLine { display: flex; gap: 6px; padding: 8px; }
+    #method { flex: 0 0 auto; font-weight: 600; }
+
+    /* URL field: contenteditable so {{variables}} can render as hoverable tokens */
+    .urlEditor {
+      flex: 1; min-width: 0;
+      border: 1px solid var(--line); border-radius: 6px; background: #fff;
+      padding: 6px 8px; font: 13px/1.4 ui-monospace, Consolas, monospace;
+      white-space: pre; overflow-x: auto; overflow-y: hidden;
     }
-    #bar button:hover { background: #e8e8e8; }
-    #url {
-      flex: 1; padding: 6px 8px; font-size: 13px;
-      border: 1px solid #bbb; border-radius: 4px;
+    .urlEditor:empty::before {
+      content: attr(data-placeholder); color: #9a96a6; pointer-events: none;
     }
-    #status {
-      padding: 2px 8px; font-size: 12px; color: #c00;
-      background: #fff5f5; min-height: 16px; display: none;
+    .urlEditor .tok {
+      background: #fbefc9; color: #7a5800; border-radius: 3px;
+      padding: 0 2px; cursor: pointer;
     }
-    #status.show { display: block; }
+    .urlEditor .tok:hover { background: #f6e3a8; }
+    .urlEditor .tok.unset { background: #fbdedb; color: #a52519; }
+
+    #varPop {
+      position: fixed; z-index: 90; width: 330px; max-width: 90vw;
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.2); padding: 8px;
+      box-sizing: border-box;
+    }
+    #varPop .vpHead {
+      font: 600 12px/1.4 ui-monospace, Consolas, monospace;
+      color: #7a5800; margin-bottom: 6px;
+    }
+    #varPop input { width: 100%; box-sizing: border-box; font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
+    #varPop .vpFoot { margin-top: 6px; }
+    #varPop .hint { margin: 0; }
+
+    .tabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--line); }
+    .tabs button {
+      border: none; background: none; border-radius: 6px 6px 0 0;
+      padding: 7px 10px; font-size: 12px; color: var(--muted);
+      border-bottom: 2px solid transparent;
+    }
+    .tabs button:hover { background: #e9e7ee; }
+    .tabs button.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+    .tabs.small button { padding: 5px 9px; }
+
+    #reqArea { flex: 1 1 auto; min-height: 90px; overflow: auto; }
+    .pane { padding: 10px; }
+
+    .formRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .formRow > label { flex: 0 0 84px; font-size: 12px; color: var(--muted); }
+    .formRow > input, .formRow > .withBtn { flex: 1; min-width: 0; }
+    .withBtn { display: flex; gap: 4px; }
+    .withBtn > input { flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
+    .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+    .hint code { background: #e6e3ee; padding: 1px 4px; border-radius: 3px; }
+    .err { font-size: 12px; color: var(--bad); }
+
+    table.kv { width: 100%; border-collapse: collapse; }
+    table.kv th {
+      text-align: left; font-size: 11px; color: var(--muted); font-weight: 600;
+      padding: 0 4px 4px; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table.kv td { padding: 0 4px 6px; }
+    table.kv input { width: 100%; box-sizing: border-box; font-size: 12px; }
+    table.kv td.act { width: 30px; }
+
+    /* code editor + viewer */
+    .editorTools { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .editorTools .spacer { flex: 1; }
+    .editorTools .label { font-size: 12px; color: var(--muted); }
+
+    .editor { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--code-bg); }
+    .editor .gutter {
+      flex: 0 0 auto; padding: 8px 6px; text-align: right;
+      font: 12px/1.5 ui-monospace, Consolas, monospace;
+      color: #6d6a86; background: #191725; user-select: none; white-space: pre;
+    }
+    .editor textarea {
+      flex: 1; min-width: 0; min-height: 160px; resize: vertical;
+      border: none; border-radius: 0; background: var(--code-bg); color: var(--code-ink);
+      font: 12px/1.5 ui-monospace, Consolas, monospace; padding: 8px; white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ---------- response ---------- */
+    #resSplit { flex: 0 0 auto; height: 6px; cursor: row-resize; background: var(--line); }
+    #resSplit:hover, #resSplit.active { background: var(--accent); }
+
+    #resWrap { flex: 0 0 auto; height: 300px; display: flex; flex-direction: column; min-height: 0; }
+    #resMeta { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; }
+    #resMeta .spacer { flex: 1; }
+    .pill { font-weight: 700; border-radius: 999px; padding: 2px 8px; color: #fff; background: var(--muted); }
+    .pill.s2 { background: var(--ok); }
+    .pill.s3 { background: #2a6fb0; }
+    .pill.s4 { background: var(--warn); }
+    .pill.s5, .pill.err { background: var(--bad); }
+    #resMeta .meta { color: var(--muted); }
+
+    #resBody { flex: 1; min-height: 0; display: flex; margin: 0 8px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--code-bg); }
+    #resBody .gutter {
+      flex: 0 0 auto; padding: 8px 6px; text-align: right;
+      font: 12px/1.5 ui-monospace, Consolas, monospace;
+      color: #6d6a86; background: #191725; user-select: none; white-space: pre; overflow: hidden;
+    }
+    #resBody pre {
+      flex: 1; min-width: 0; margin: 0; padding: 8px; overflow: auto;
+      font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--code-ink);
+      white-space: pre;
+    }
+    #resHeaders { flex: 1; min-height: 0; overflow: auto; margin: 0 8px; font: 12px/1.6 ui-monospace, Consolas, monospace; }
+    #resHeaders .hk { color: var(--accent); }
+
+    /* JSON highlighting */
+    .j-key  { color: #9ad1ff; }
+    .j-str  { color: #b6e59e; }
+    .j-num  { color: #f2b871; }
+    .j-bool { color: #d79cf2; }
+    .j-null { color: #8d8aa8; }
+
+    #journeyRow {
+      display: flex; gap: 6px; align-items: center;
+      padding: 8px; border-top: 1px solid var(--line);
+    }
+    #journeyUrl {
+      flex: 1; min-width: 0; font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+    }
   </style>
 </head>
 <body>
-  <div id="bar">
-    <img id="favicon" src="assets/favicon.ico" alt="icon" />
-    <button id="back" title="Back">&#9664;</button>
-    <button id="reload" title="Reload">&#8635;</button>
-    <button id="devtools" title="Toggle DevTools (F12)">&#128295;</button>
-    <input id="url" type="text"
-           placeholder="Paste consent-journey URL (e.g. http://localhost:3000/?orgId=...&ecreq=...)" />
-    <button id="go">Go</button>
+  <div id="chrome">
+    <div id="bar">
+      <img id="favicon" src="assets/favicon.ico" alt="" />
+      <button id="back" class="icon" title="Back" aria-label="Back">&#9664;</button>
+      <button id="reload" class="icon" title="Reload" aria-label="Reload">&#8635;</button>
+      <button id="devtools" class="icon" title="Toggle DevTools (F12)" aria-label="Toggle DevTools">&#128295;</button>
+      <button id="apiToggle" class="icon" title="API console (Ctrl+B)" aria-label="Toggle API console"
+              aria-pressed="false">&#123;&nbsp;&#125;</button>
+      <div id="rewriteGroup">
+        <button id="rewriteOpen" title="Rewrite the URL to this protocol/host and open it">
+          &#8594;&nbsp;<span id="rewriteLabel">localhost:3000</span>
+        </button>
+        <button id="rewriteConfig" title="Change the target protocol and host"
+                aria-label="Change rewrite target" aria-expanded="false">&#9662;</button>
+      </div>
+      <div id="urlWrap">
+        <label class="sr" for="url" hidden>Page URL</label>
+        <input id="url" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Paste consent-journey URL (e.g. http://localhost:3000/?orgId=...&ecreq=...)" />
+        <button id="histBtn" title="URL history" aria-label="URL history" aria-expanded="false">&#9662;</button>
+        <div id="histPanel" hidden role="dialog" aria-label="URL history"></div>
+      </div>
+      <button id="go" class="primary">Go</button>
+    </div>
+    <div id="status" role="status"></div>
   </div>
-  <div id="status"></div>
+
+  <div id="shell">
+    <aside id="sidebar" hidden aria-label="API console">
+      <div id="sbHead">
+        <span class="sbTitle">API Console</span>
+        <div class="spacer"></div>
+        <button id="flipSide" class="tiny" title="Move panel to the other side">&#8646;</button>
+        <button id="closeSb" class="tiny" title="Close panel (Ctrl+B)">&#10005;</button>
+      </div>
+
+      <div class="reqLine">
+        <label class="sr" for="method" hidden>Method</label>
+        <select id="method">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PUT</option>
+          <option>PATCH</option>
+          <option>DELETE</option>
+          <option>HEAD</option>
+          <option>OPTIONS</option>
+        </select>
+        <div id="apiUrl" class="urlEditor" contenteditable="true" role="textbox"
+             aria-label="Request URL" spellcheck="false"
+             data-placeholder="{{baseUrl}}/path"></div>
+        <button id="send" class="primary">Send</button>
+      </div>
+
+      <nav class="tabs" role="tablist" aria-label="Request sections">
+        <button data-tab="auth" class="active" role="tab" aria-selected="true">Authorization</button>
+        <button data-tab="headers" role="tab" aria-selected="false">Headers</button>
+        <button data-tab="body" role="tab" aria-selected="false">Body</button>
+        <button data-tab="vars" role="tab" aria-selected="false">Variables</button>
+      </nav>
+
+      <div id="reqArea">
+        <section class="pane" data-pane="auth" role="tabpanel">
+          <div class="formRow">
+            <label for="authType">Auth type</label>
+            <input id="authType" type="text" value="API Key" disabled />
+          </div>
+          <div class="formRow">
+            <label for="authKey">Key</label>
+            <input id="authKey" type="text" value="API_KEY" disabled />
+          </div>
+          <div class="formRow">
+            <label for="apiKey">Value</label>
+            <div class="withBtn">
+              <input id="apiKey" type="password" autocomplete="off" spellcheck="false"
+                     placeholder="paste key, or {{apiKey}}" />
+              <button id="revealKey" class="tiny" aria-pressed="false">Show</button>
+            </div>
+          </div>
+          <p class="hint">Sent as request header <code>API_KEY</code>. Supports <code>{{variables}}</code>.</p>
+        </section>
+
+        <section class="pane" data-pane="headers" role="tabpanel" hidden>
+          <table class="kv">
+            <thead><tr><th>Key</th><th>Value</th><th class="act"></th></tr></thead>
+            <tbody id="headerRows"></tbody>
+          </table>
+          <button id="addHeader" class="tiny">+ Add header</button>
+          <p class="hint"><code>Content-Type: application/json</code> is added automatically when a body is present.</p>
+        </section>
+
+        <section class="pane" data-pane="body" role="tabpanel" hidden>
+          <div class="editorTools">
+            <span class="label">raw &middot; JSON</span>
+            <div class="spacer"></div>
+            <span id="bodyErr" class="err"></span>
+            <button id="beautify" class="tiny">Beautify</button>
+          </div>
+          <div class="editor">
+            <div class="gutter" id="bodyGutter" aria-hidden="true">1</div>
+            <label class="sr" for="bodyText" hidden>Request body</label>
+            <textarea id="bodyText" spellcheck="false" autocomplete="off"
+                      placeholder='{ "key": "value" }'></textarea>
+          </div>
+          <p class="hint"><code>//</code> and <code>/* */</code> comments (and the trailing commas they leave behind) are stripped before sending, so you can keep lines commented out.</p>
+        </section>
+
+        <section class="pane" data-pane="vars" role="tabpanel" hidden>
+          <table class="kv">
+            <thead><tr><th>Name</th><th>Value</th><th class="act"></th></tr></thead>
+            <tbody id="varRows"></tbody>
+          </table>
+          <button id="addVar" class="tiny">+ Add variable</button>
+          <p class="hint">Use as <code>{{name}}</code> in the URL, headers, body, and API key.</p>
+        </section>
+      </div>
+
+      <div id="resSplit" title="Drag to resize response"></div>
+
+      <div id="resWrap">
+        <div id="resMeta">
+          <span id="resPill" class="pill">—</span>
+          <span id="resTime" class="meta"></span>
+          <span id="resSize" class="meta"></span>
+          <div class="spacer"></div>
+          <button id="copyRes" class="tiny">Copy</button>
+        </div>
+        <nav class="tabs small" role="tablist" aria-label="Response sections">
+          <button data-rtab="body" class="active" role="tab" aria-selected="true">Body</button>
+          <button data-rtab="headers" role="tab" aria-selected="false">Headers</button>
+        </nav>
+        <div id="resBody">
+          <div class="gutter" id="resGutter" aria-hidden="true"></div>
+          <pre id="resPre" tabindex="0"></pre>
+        </div>
+        <div id="resHeaders" hidden></div>
+
+        <div id="journeyRow">
+          <label class="sr" for="journeyUrl" hidden>Journey URL</label>
+          <input id="journeyUrl" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="redirectionUrl from the response appears here" />
+          <button id="openJourney" class="tiny primary"
+                  title="Open this URL as-is in the page view">Open</button>
+        </div>
+      </div>
+    </aside>
+
+    <div id="dragbar" hidden role="separator" aria-orientation="vertical" title="Drag to resize panel"></div>
+    <div id="pageArea"><span id="pageHint"></span></div>
+  </div>
+
+  <div id="rewritePop" hidden role="dialog" aria-label="Rewrite target">
+    <div class="rwRow">
+      <label for="rwProto">Protocol</label>
+      <select id="rwProto">
+        <option value="http:">http</option>
+        <option value="https:">https</option>
+      </select>
+    </div>
+    <div class="rwRow">
+      <label for="rwHost">Host</label>
+      <input id="rwHost" type="text" spellcheck="false" autocomplete="off" placeholder="localhost:3000" />
+    </div>
+    <div class="rwRow">
+      <label for="rwParams">Params</label>
+      <input id="rwParams" type="text" spellcheck="false" autocomplete="off"
+             placeholder="orgId=abc&amp;foo=bar" />
+    </div>
+    <div class="rwRow rwActions">
+      <button id="rwApplyParams" disabled>Add params &amp; open</button>
+    </div>
+    <p class="hint">Params are empty by default, so nothing is appended. Press
+      <strong>Enter</strong> in any field to apply and open straight away.</p>
+  </div>
+
+  <div id="varPop" hidden role="dialog" aria-label="Edit variable">
+    <div class="vpHead"><span id="vpName"></span></div>
+    <input id="vpValue" type="text" spellcheck="false" autocomplete="off"
+           placeholder="paste value, e.g. https://fiupreprod.ignosis.ai/fiu/api/pirimid" />
+    <div class="vpFoot">
+      <span class="hint">Saved to the <strong>Variables</strong> tab</span>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
+  <script src="api-panel.js"></script>
 </body>
 </html>

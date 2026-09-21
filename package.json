@@ -1,7 +1,7 @@
 {
-  "name": "aa-mini-browser",
+  "name": "nibble",
   "version": "1.0.0",
-  "description": "Minimal Electron browser with web security disabled for AA consent-journey testing",
+  "description": "Nibble — a tiny Electron browser with a built-in API console, for AA consent-journey testing",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -16,15 +16,17 @@
   },
   "build": {
     "appId": "com.aa.minibrowser",
-    "productName": "AA Mini Browser",
+    "productName": "Nibble",
     "directories": {
       "output": "release"
     },
     "files": [
       "main.js",
       "preload.js",
+      "page-preload.js",
       "index.html",
       "renderer.js",
+      "api-panel.js",
       "package.json",
       "assets/**"
     ],
@@ -50,7 +52,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "AA Mini Browser"
+      "shortcutName": "Nibble"
     }
   }
 }
