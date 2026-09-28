@@ -1,28 +1,129 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <title>Nibble</title>
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
   <style>
-    :root {
+    /* ---------------------------------------------------------------------
+       Theming. Every surface colour below is a variable so the whole shell can
+       flip between light and dark from one attribute on <html>. The journey
+       render is a native view we do not control, so only our chrome changes.
+       --------------------------------------------------------------------- */
+    :root, html[data-theme="light"] {
+      color-scheme: light;
+
       --chrome:   #f2f1f4;
+      --strip:    #e7e5eb;
       --line:     #cfcdd4;
       --ink:      #2a2730;
       --muted:    #6f6b77;
       --accent:   #7c5cd6;
       --accent-d: #6a4ac4;
-      --code-bg:  #1f1d2b;
-      --code-ink: #e6e3f0;
-      --ok:       #1a8a4a;
-      --warn:     #b26a00;
-      --bad:      #c0392b;
+
+      --surface:   #ffffff;   /* inputs, buttons, popovers, cards */
+      --surface-2: #e9e7ee;   /* hover */
+      --surface-3: #eceaf0;   /* disabled / read-only fields */
+
+      --tab-bg:          #d8d5de;
+      --tab-hover:       #cfccd7;
+      --tab-close-hover: #bdb9c8;
+
+      --page-bg: #fbfbfd;
+      --shadow:  rgba(0,0,0,.2);
+
+      --ok:   #1a8a4a;
+      --info: #2a6fb0;
+      --warn: #b26a00;
+      --bad:  #c0392b;
+
+      /* code editor + response viewer */
+      --code-bg:         #ffffff;
+      --code-ink:        #2a2730;
+      --code-gutter:     #f4f3f8;
+      --code-gutter-ink: #9a96a6;
+
+      --j-key:  #1d4ed8;
+      --j-str:  #166534;
+      --j-num:  #b45309;
+      --j-bool: #7c3aed;
+      --j-null: #6f6b77;
+
+      /* inline banners */
+      --notice-bg: #fdf3d7; --notice-ink: #7a5800; --notice-line: #e8d79b; --notice-code: #f6e8bd;
+      --good-bg:   #e7f6ec; --good-ink:   #176335; --good-line:   #b8e0c5;
+      --bad-bg:    #fdeceb; --bad-ink:    #a52519; --bad-line:    #efc3bf;
+
+      /* {{variable}} tokens in the request URL */
+      --tok-bg: #fbefc9; --tok-ink: #7a5800; --tok-bg-hover: #f6e3a8;
+      --tok-unset-bg: #fbdedb; --tok-unset-ink: #a52519;
+
+      --disabled-bg: #dedbe4; --disabled-ink: #56525f; --disabled-line: #b4b0bd;
+
+      /* scrollbars: barely-there until you reach for them */
+      --sb-thumb: #c4bfd0; --sb-thumb-hover: #9a93ab;
+
+      /* burger lines — replaced at runtime with colours sampled from the icon */
+      --fav-1: #7c5cd6; --fav-2: #9b7cf0; --fav-3: #6a4ac4;
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+
+      --chrome:   #1c1a24;
+      --strip:    #141220;
+      --line:     #35313f;
+      --ink:      #e7e4ee;
+      --muted:    #a39fae;
+      --accent:   #9b7cf0;
+      --accent-d: #7c5cd6;
+
+      --surface:   #242131;
+      --surface-2: #2e2a3c;
+      --surface-3: #2a2735;
+
+      --tab-bg:          #262234;
+      --tab-hover:       #302c40;
+      --tab-close-hover: #403a52;
+
+      --page-bg: #15131d;
+      --shadow:  rgba(0,0,0,.55);
+
+      --ok:   #35b46a;
+      --info: #4f93d6;
+      --warn: #d79331;
+      --bad:  #e06a5c;
+
+      --code-bg:         #1a1824;
+      --code-ink:        #e6e3f0;
+      --code-gutter:     #15131d;
+      --code-gutter-ink: #6d6a86;
+
+      --j-key:  #9ad1ff;
+      --j-str:  #b6e59e;
+      --j-num:  #f2b871;
+      --j-bool: #d79cf2;
+      --j-null: #8d8aa8;
+
+      --notice-bg: #3a2f10; --notice-ink: #f0d58a; --notice-line: #5a4818; --notice-code: #4c3d13;
+      --good-bg:   #14301f; --good-ink:   #9ee0b8; --good-line:   #1f5537;
+      --bad-bg:    #3a1a17; --bad-ink:    #f3b6ae; --bad-line:    #5e2a24;
+
+      --tok-bg: #463611; --tok-ink: #f0d58a; --tok-bg-hover: #574317;
+      --tok-unset-bg: #4a1f1b; --tok-unset-ink: #f3b6ae;
+
+      --disabled-bg: #332f42; --disabled-ink: #b6b1c2; --disabled-line: #4c4658;
+
+      --sb-thumb: #453e58; --sb-thumb-hover: #6b6186;
+
+      --fav-1: #9b7cf0; --fav-2: #c3aef7; --fav-3: #7c5cd6;
     }
 
     html, body {
       margin: 0; height: 100%;
       font-family: system-ui, "Segoe UI", sans-serif;
       color: var(--ink);
+      background: var(--chrome);
       overflow: hidden;
     }
     body { display: flex; flex-direction: column; }
@@ -30,10 +131,10 @@
 
     button {
       font: inherit; cursor: pointer; color: var(--ink);
-      border: 1px solid var(--line); background: #fff;
+      border: 1px solid var(--line); background: var(--surface);
       border-radius: 6px; padding: 6px 10px;
     }
-    button:hover { background: #e9e7ee; }
+    button:hover { background: var(--surface-2); }
     button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
       outline: 2px solid var(--accent); outline-offset: 1px;
     }
@@ -46,34 +147,203 @@
     button.tiny { padding: 3px 7px; font-size: 12px; }
 
     input, select, textarea {
-      font: inherit; color: var(--ink); background: #fff;
+      font: inherit; color: var(--ink); background: var(--surface);
       border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
     }
-    input:disabled { background: #eceaf0; color: var(--muted); }
+    input:disabled { background: var(--surface-3); color: var(--muted); }
+    input::placeholder, textarea::placeholder { color: var(--muted); opacity: .85; }
 
     /* ---------- top chrome ---------- */
     #chrome { flex: 0 0 auto; background: var(--chrome); border-bottom: 1px solid var(--line); }
-    #bar { display: flex; gap: 6px; align-items: center; padding: 8px; box-sizing: border-box; }
-    #favicon { width: 24px; height: 24px; flex: 0 0 auto; image-rendering: pixelated; }
+
+    #tabstrip {
+      display: flex; align-items: flex-end; gap: 6px;
+      padding: 5px 6px 0; border-bottom: 1px solid var(--line);
+      background: var(--strip);
+    }
+    /* Tabs live in a shrinkable area of their own. It used to share the strip
+       with a reserved action zone for the HAR pill; that export is in the menu
+       now, so the tabs get the whole width. */
+    #tabsArea {
+      flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden;
+      display: flex; align-items: flex-end; gap: 2px;
+    }
+    #tabsArea::-webkit-scrollbar { height: 0; }
+
+    /* Shrinkable (min-width:0) so the tabs inside can compress to their 40px
+       floor; the + button still sits right after the last tab. */
+    #tablist { display: flex; align-items: flex-end; gap: 2px; flex: 0 1 auto; min-width: 0; }
+
+    .tab {
+      display: flex; align-items: center; gap: 6px;
+      /* Shrinks from 190px down to a 40px floor (close button only); past that
+         #tabsArea scrolls instead of shrinking further. */
+      flex: 0 1 190px; min-width: 40px; max-width: 220px;
+      padding: 5px 6px 5px 10px; box-sizing: border-box;
+      background: var(--tab-bg); color: var(--muted);
+      border: 1px solid var(--line); border-bottom: none;
+      border-radius: 7px 7px 0 0; cursor: pointer;
+      font-size: 12px; user-select: none; overflow: hidden;
+    }
+    .tab:hover { background: var(--tab-hover); }
+    .tab.active {
+      background: var(--chrome); color: var(--ink); font-weight: 600;
+      margin-bottom: -1px; padding-bottom: 6px;
+    }
+    .tab .tabTitle {
+      flex: 1; min-width: 0; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .tab .tabSpin {
+      flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
+      border: 2px solid var(--accent); border-top-color: transparent;
+      animation: spin .7s linear infinite;
+    }
+    .tab .tabClose {
+      flex: 0 0 auto; border: none; background: none; border-radius: 4px;
+      padding: 1px 4px; font-size: 11px; line-height: 1; color: var(--muted);
+    }
+    .tab .tabClose:hover { background: var(--tab-close-hover); color: var(--ink); }
+
+    /* The + button is shaped like the active tab: top-rounded, no bottom border,
+       and pulled down the same -1px so its bottom edge meets the bar below instead
+       of floating above it. */
+    #newTab {
+      flex: 0 0 auto; margin: 0 0 -1px 4px; padding: 5px 11px;
+      font-size: 15px; line-height: 1;
+      background: var(--chrome); color: var(--ink);
+      border: 1px solid var(--line); border-bottom: none;
+      border-radius: 7px 7px 0 0;
+    }
+    #newTab:hover { background: var(--tab-hover); }
+
+    /* Three columns with equal, zero-min side tracks, so the URL field sits on
+       the window's true centre line and stays there no matter how wide the left
+       cluster's rewrite label gets — nothing shifts as its host text changes.
+       Because the side tracks are equal, that centre line is also the midpoint
+       between the two button clusters: both readings of "centred" coincide.
+       minmax(0, 1fr) rather than 1fr: without it the side tracks claim their
+       min-content width and would push the field off centre.
+       min(560px, 44vw) caps the field so a narrow window spends its space on the
+       buttons instead — past ~1260px the 560px cap wins and the field stops
+       growing, which is the point: a wide window should not mean a wide URL box. */
+    #bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(200px, min(560px, 44vw)) minmax(0, 1fr);
+      align-items: center; gap: 8px; padding: 8px; box-sizing: border-box;
+    }
+    .barSide { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    #barRight { justify-content: flex-end; }
+
+    /* ---------- app menu: the favicon IS the burger button ---------- */
+    #menuWrap { flex: 0 0 auto; display: flex; }
+    #menuBtn {
+      position: relative; width: 32px; height: 30px; padding: 0;
+      display: grid; place-items: center;
+      background: transparent; border-color: transparent;
+    }
+    #menuBtn:hover, #menuBtn[aria-expanded="true"] {
+      background: var(--surface-2); border-color: var(--line);
+    }
+    #favicon {
+      grid-area: 1 / 1; width: 22px; height: 22px;
+      image-rendering: pixelated; transition: opacity .12s ease;
+    }
     #favicon.spinning { animation: spin .8s linear infinite; }
     @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
-    #urlWrap { flex: 1; display: flex; position: relative; }
-    #url { flex: 1; font-size: 13px; border-radius: 6px 0 0 6px; border-right: none; }
-    #histBtn { border-radius: 0 6px 6px 0; }
+    /* Three lines, painted in colours sampled from the favicon itself. */
+    #menuBtn .burger {
+      grid-area: 1 / 1; width: 18px; height: 14px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      opacity: 0; transition: opacity .12s ease; pointer-events: none;
+    }
+    #menuBtn .burger i { display: block; height: 2.5px; border-radius: 2px; }
+    #menuBtn .burger i:nth-child(1) { background: var(--fav-1); }
+    #menuBtn .burger i:nth-child(2) { background: var(--fav-2); width: 78%; }
+    #menuBtn .burger i:nth-child(3) { background: var(--fav-3); }
+
+    /* Icon -> burger on hover/focus and while the menu is open, but never while
+       the page is loading: the spinner is the more useful signal then. */
+    #menuBtn:hover #favicon:not(.spinning),
+    #menuBtn:focus-visible #favicon:not(.spinning),
+    #menuBtn[aria-expanded="true"] #favicon:not(.spinning) { opacity: 0; }
+    #menuBtn:hover #favicon:not(.spinning) ~ .burger,
+    #menuBtn:focus-visible #favicon:not(.spinning) ~ .burger,
+    #menuBtn[aria-expanded="true"] #favicon:not(.spinning) ~ .burger { opacity: 1; }
+
+    /* The menu is a drawer in the shell (like the API console), not a popup, so
+       it never overlaps the native page view and needs no page-hiding. It stays
+       on the left even when the console flips sides. */
+    #menuPanel {
+      flex: 0 0 auto; width: 250px; box-sizing: border-box; order: -1;
+      display: flex; flex-direction: column; min-height: 0;
+      background: var(--chrome); border-right: 1px solid var(--line);
+    }
+    /* #shell.right reverses the row, so the drawer needs the highest order to
+       stay leftmost. */
+    #shell.right #menuPanel { order: 9; }
+
+    #menuHead {
+      display: flex; align-items: center; gap: 6px; padding: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    #menuHead .sbTitle { font-weight: 700; font-size: 13px; }
+    #menuHead .spacer { flex: 1; }
+
+    #menuItems { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 6px; }
+    #menuFoot { flex: 0 0 auto; border-top: 1px solid var(--line); padding: 8px 6px 10px; }
+
+    /* The drawer is resizable too, on the same pattern as the console column. */
+    #menuDrag { flex: 0 0 auto; width: 6px; cursor: col-resize; background: var(--line); order: -1; }
+    #menuDrag:hover, #menuDrag.active { background: var(--accent); }
+    #shell.right #menuDrag { order: 8; }
+
+    .menuItem {
+      display: flex; align-items: center; gap: 9px; width: 100%;
+      border: none; background: none; border-radius: 6px;
+      padding: 8px; font-size: 13px; text-align: left;
+    }
+    .menuItem:hover:not(:disabled) { background: var(--surface-2); }
+    .menuItem:disabled { color: var(--muted); cursor: default; }
+    .menuItem:disabled:hover { background: none; }
+    .menuItem .mi-ic { flex: 0 0 18px; text-align: center; font-size: 13px; color: var(--muted); }
+    .menuItem .mi-label { flex: 1; min-width: 0; }
+    .menuItem .mi-key { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+    /* Open/closed state of the console is shown by a tick, not colour alone. */
+    .menuItem .mi-on { flex: 0 0 auto; font-size: 11px; color: var(--accent); }
+    .menuItem[aria-pressed="true"] { background: var(--surface-3); }
+    .menuGroupLabel {
+      display: block; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .04em; margin: 0 2px 6px;
+    }
+    .segmented { display: flex; }
+    .segmented button {
+      flex: 1; border-radius: 0; border-left-width: 0; font-size: 12px; padding: 5px 4px;
+    }
+    .segmented button:first-child { border-radius: 6px 0 0 6px; border-left-width: 1px; }
+    .segmented button:last-child { border-radius: 0 6px 6px 0; }
+    .segmented button[aria-checked="true"] {
+      background: var(--accent); border-color: var(--accent-d); color: #fff; font-weight: 600;
+    }
+    .segmented button[aria-checked="true"] + button { border-left-color: var(--accent-d); }
+
+    #urlWrap { display: flex; position: relative; min-width: 0; }
+    #url { flex: 1; min-width: 0; font-size: 13px; border-radius: 6px; }
 
     /* split button: label rewrites+opens, caret opens the target config */
-    #rewriteGroup { display: flex; flex: 0 0 auto; }
+    #rewriteGroup { display: flex; flex: 0 1 auto; min-width: 0; }
     #rewriteOpen {
       border-radius: 6px 0 0 6px; border-right: none;
       white-space: nowrap; font-size: 12px;
+      overflow: hidden; text-overflow: ellipsis;
     }
     #rewriteConfig { border-radius: 0 6px 6px 0; padding: 6px 6px; font-size: 10px; }
 
     #rewritePop {
       position: fixed; z-index: 90; width: 320px;
-      background: #fff; border: 1px solid var(--line); border-radius: 8px;
-      box-shadow: 0 10px 28px rgba(0,0,0,.2); padding: 10px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: 0 10px 28px var(--shadow); padding: 10px;
     }
     #rewritePop .rwRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     #rewritePop .rwRow > label { flex: 0 0 62px; font-size: 12px; color: var(--muted); }
@@ -81,33 +351,72 @@
       flex: 1; min-width: 0; font-size: 12px;
     }
     #rewritePop .rwRow > input { font-family: ui-monospace, Consolas, monospace; }
-    #rewritePop .rwActions { justify-content: flex-end; }
-    #rewritePop .rwActions button { font-size: 12px; }
-    #rewritePop .rwActions button:disabled { opacity: .5; cursor: default; }
-    #rewritePop .rwActions button:disabled:hover { background: #fff; }
     #rewritePop .hint { margin: 0; }
 
-    #histPanel {
-      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
-      background: #fff; border: 1px solid var(--line); border-radius: 8px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.18);
-      max-height: 320px; overflow: auto; padding: 4px;
-    }
-    #histPanel .histHead {
-      display: flex; align-items: center; gap: 8px;
-      padding: 4px 6px; font-size: 12px; color: var(--muted);
-    }
-    #histPanel .histHead .spacer { flex: 1; }
+    /* URL history rows. Live in the History panel now, not a popup. */
     .histItem { display: flex; align-items: center; gap: 4px; }
     .histItem > button.pick {
       flex: 1; text-align: left; border: none; background: none; border-radius: 4px;
       font-size: 12px; padding: 5px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .histItem > button.pick:hover { background: #f0eef5; }
+    .histItem > button.pick:hover { background: var(--surface-2); }
     .histEmpty { padding: 8px 6px; font-size: 12px; color: var(--muted); }
 
-    #status { padding: 2px 8px; font-size: 12px; color: var(--bad); background: #fff5f5; display: none; }
+    #status {
+      display: none; padding: 2px 8px; font-size: 12px;
+      color: var(--bad-ink); background: var(--bad-bg);
+    }
     #status.show { display: block; }
+
+    #notice {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px; font-size: 12px;
+      color: var(--notice-ink); background: var(--notice-bg);
+      border-top: 1px solid var(--notice-line);
+    }
+    #notice #noticeText { flex: 1; min-width: 0; }
+    #notice code { background: var(--notice-code); padding: 1px 4px; border-radius: 3px; }
+
+    #toast {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px; font-size: 12px;
+      color: var(--good-ink); background: var(--good-bg); border-top: 1px solid var(--good-line);
+    }
+    #toast.bad { color: var(--bad-ink); background: var(--bad-bg); border-top-color: var(--bad-line); }
+    #toast #toastText {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; font-family: ui-monospace, Consolas, monospace;
+    }
+
+    /* ---------- startup security alert ---------- */
+    /* Same look as the confirm dialog, so the app has one dialog language. It
+       fades rather than appearing instantly, because it also leaves on its own. */
+    #alertBackdrop {
+      position: fixed; inset: 0; z-index: 130;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, .45);
+      opacity: 0; transition: opacity .45s ease;
+    }
+    #alertBackdrop.in { opacity: 1; }
+    #alertBox {
+      width: min(420px, calc(100vw - 32px)); box-sizing: border-box;
+      background: var(--surface); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 16px 40px var(--shadow); padding: 14px;
+    }
+    #alertBox .cfTitle { display: flex; align-items: baseline; gap: 8px; }
+    #alertBox .cfText { line-height: 1.5; }
+    #alertBox code { background: var(--surface-2); padding: 1px 4px; border-radius: 3px; }
+    /* The countdown is invisible, so the extra choices only appear once the
+       pointer is on the dialog — i.e. once it is clear the user is reading it. */
+    /* OK, "Don't show again" and ✕ share one row. OK stays leftmost (order:-1)
+       so its position never shifts when the extras appear on hover. */
+    #alertBox .cfActions { display: flex; align-items: center; gap: 6px; }
+    #alertBox #alertOk { order: -1; }
+    #alertBox #alertExtra { display: flex; gap: 6px; }
+    @media (prefers-reduced-motion: reduce) {
+      #alertBackdrop { transition: none; }
+    }
 
     /* ---------- shell: sidebar + (native page view fills the rest) ---------- */
     #shell { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -129,7 +438,7 @@
     #pageArea {
       flex: 1; min-width: 0; display: flex;
       align-items: center; justify-content: center;
-      background: #fbfbfd;
+      background: var(--page-bg);
     }
     #pageHint { font-size: 13px; color: var(--muted); }
 
@@ -140,37 +449,93 @@
     #sbHead .sbTitle { font-weight: 700; font-size: 13px; }
     #sbHead .spacer { flex: 1; }
 
+    /* Each panel in the shared column fills it the same way, so swapping which
+       one is shown cannot change the column's geometry. */
+    .panelBody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .panelScroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px; }
+
+    /* AA mapping: the id column is long, so the label column is wider here. */
+    #panelMap .formRow > label { flex: 0 0 124px; }
+
+    /* Confirm dialog. The page render is a native view above our DOM, so the
+       renderer hides it while this is up (NibbleUI.confirm) — otherwise the
+       backdrop would only cover our own chrome. */
+    #confirmBackdrop {
+      position: fixed; inset: 0; z-index: 120;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, .45);
+    }
+    #confirmBox {
+      width: min(380px, calc(100vw - 32px)); box-sizing: border-box;
+      background: var(--surface); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 16px 40px var(--shadow); padding: 14px;
+    }
+    #confirmBox .cfTitle { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    #confirmBox .cfText { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+    #confirmBox .cfText strong { color: var(--ink); }
+    #confirmBox .cfActions { display: flex; justify-content: flex-end; gap: 6px; }
+    #confirmBox .cfActions button { font-size: 12px; padding: 5px 10px; }
+    button.primary.danger { background: var(--bad); border-color: var(--bad); }
+    button.primary.danger:hover { filter: brightness(.92); }
+
     .reqLine { display: flex; gap: 6px; padding: 8px; }
     #method { flex: 0 0 auto; font-weight: 600; }
 
     /* URL field: contenteditable so {{variables}} can render as hoverable tokens */
     .urlEditor {
       flex: 1; min-width: 0;
-      border: 1px solid var(--line); border-radius: 6px; background: #fff;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
       padding: 6px 8px; font: 13px/1.4 ui-monospace, Consolas, monospace;
       white-space: pre; overflow-x: auto; overflow-y: hidden;
     }
     .urlEditor:empty::before {
-      content: attr(data-placeholder); color: #9a96a6; pointer-events: none;
+      content: attr(data-placeholder); color: var(--muted); pointer-events: none;
     }
     .urlEditor .tok {
-      background: #fbefc9; color: #7a5800; border-radius: 3px;
+      background: var(--tok-bg); color: var(--tok-ink); border-radius: 3px;
       padding: 0 2px; cursor: pointer;
     }
-    .urlEditor .tok:hover { background: #f6e3a8; }
-    .urlEditor .tok.unset { background: #fbdedb; color: #a52519; }
+    .urlEditor .tok:hover { background: var(--tok-bg-hover); }
+    .urlEditor .tok.unset { background: var(--tok-unset-bg); color: var(--tok-unset-ink); }
+
+    /* Body variable chips. Same colours as the URL tokens, since they do the same
+       job and open the same card — only the shape differs. */
+    #bodyVars {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+      margin-top: 8px; font-size: 12px;
+    }
+    #bodyVars .label { color: var(--muted); }
+    #bodyVarList { display: flex; flex-wrap: wrap; gap: 6px; }
+    .bodyTok {
+      font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+      background: var(--tok-bg); color: var(--tok-ink);
+      border: 1px solid transparent; border-radius: 4px;
+      padding: 2px 6px; cursor: pointer;
+    }
+    .bodyTok:hover { background: var(--tok-bg-hover); }
+    .bodyTok.unset { background: var(--tok-unset-bg); color: var(--tok-unset-ink); }
+    /* Matched by field name rather than by a {{token}} in the JSON — drawn as an
+       outline so the two kinds are not mistaken for each other. */
+    .bodyTok.keyMatch {
+      background: transparent; color: var(--ink);
+      border-color: var(--accent); border-style: dashed;
+    }
+    .bodyTok.keyMatch:hover { background: var(--surface-2); }
 
     #varPop {
-      position: fixed; z-index: 90; width: 330px; max-width: 90vw;
-      background: #fff; border: 1px solid var(--line); border-radius: 8px;
-      box-shadow: 0 10px 28px rgba(0,0,0,.2); padding: 8px;
-      box-sizing: border-box;
+      position: fixed; z-index: 90; width: 330px; max-width: 90vw; box-sizing: border-box;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: 0 10px 28px var(--shadow); padding: 8px;
     }
     #varPop .vpHead {
       font: 600 12px/1.4 ui-monospace, Consolas, monospace;
-      color: #7a5800; margin-bottom: 6px;
+      color: var(--tok-ink); margin-bottom: 6px;
     }
-    #varPop input { width: 100%; box-sizing: border-box; font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
+    #varPop input {
+      width: 100%; box-sizing: border-box; font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+    }
     #varPop .vpFoot { margin-top: 6px; }
     #varPop .hint { margin: 0; }
 
@@ -180,7 +545,7 @@
       padding: 7px 10px; font-size: 12px; color: var(--muted);
       border-bottom: 2px solid transparent;
     }
-    .tabs button:hover { background: #e9e7ee; }
+    .tabs button:hover { background: var(--surface-2); }
     .tabs button.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
     .tabs.small button { padding: 5px 9px; }
 
@@ -193,7 +558,7 @@
     .withBtn { display: flex; gap: 4px; }
     .withBtn > input { flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
     .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
-    .hint code { background: #e6e3ee; padding: 1px 4px; border-radius: 3px; }
+    .hint code { background: var(--surface-2); padding: 1px 4px; border-radius: 3px; }
     .err { font-size: 12px; color: var(--bad); }
 
     table.kv { width: 100%; border-collapse: collapse; }
@@ -205,16 +570,267 @@
     table.kv input { width: 100%; box-sizing: border-box; font-size: 12px; }
     table.kv td.act { width: 30px; }
 
+    /* Read-only list in the AA Mapping panel: text cells, not inputs. */
+    table.map td { padding: 4px; font-size: 12px; vertical-align: middle; border-top: 1px solid var(--line); }
+    table.map td.act { width: 30px; }
+    table.map td.mono { font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+
+    /* The last row of that same table is the add/edit form. Its buttons fill
+       their cell, so Save spanning the two action columns lines up exactly with
+       the Edit and ✕ buttons in the rows above. */
+    #mapFormRow td { border-top: 1px solid var(--line); padding-top: 8px; }
+    #mapFormRow input { font-size: 12px; }
+    #mapFormRow td.act { width: auto; }
+    #mapFormRow td.act button { width: 100%; font-size: 12px; white-space: nowrap; }
+    #mapFormRow.editing { background: var(--surface-2); }
+    /* Editing has to be obvious: the row is no longer "add", and the table shows
+       no other sign of which saved row is being changed. */
+    #mapFormRow.editing input { border-color: var(--accent); }
+
+    /* ---------- Database panel ---------- */
+    .dbMeta { font-size: 12px; color: var(--muted); }
+    .dbMeta .path {
+      font-family: ui-monospace, Consolas, monospace; color: var(--ink);
+      word-break: break-all; display: block; margin-bottom: 4px;
+    }
+    .formCardHead { display: flex; align-items: center; gap: 8px; }
+    .formCardHead > span:first-child { flex: 1; min-width: 0; }
+    .formCardHead > button { flex: 0 0 auto; font-weight: 400; }
+
+    .dbTableHead { display: flex; align-items: baseline; gap: 8px; }
+    .dbTableHead .tname {
+      flex: 1; font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px; font-weight: 700; color: var(--ink);
+    }
+    .dbTableHead .rows { font-size: 11px; color: var(--muted); }
+
+    table.dbCols { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    table.dbCols th {
+      text-align: left; font-size: 10px; color: var(--muted); font-weight: 600;
+      padding: 0 6px 4px 0; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table.dbCols td {
+      padding: 4px 6px 4px 0; font-size: 12px; vertical-align: top;
+      border-top: 1px solid var(--line);
+    }
+    table.dbCols td.cname { font-family: ui-monospace, Consolas, monospace; }
+    table.dbCols td.ctype { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+    /* Column badges: PK / UNIQUE / NOT NULL and the foreign-key target. */
+    .flag {
+      display: inline-block; font-size: 10px; font-weight: 700; line-height: 1.5;
+      padding: 0 4px; border-radius: 3px; margin-right: 3px;
+      background: var(--surface-3); color: var(--muted);
+    }
+    .flag.pk { background: var(--accent); color: #fff; }
+    .flag.uq { border: 1px solid var(--accent-d); color: var(--accent-d); background: none; }
+    .fk {
+      display: inline-block; font-family: ui-monospace, Consolas, monospace;
+      font-size: 11px; color: var(--accent-d);
+    }
+    .dbSub { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+
+    /* ---------- Tenant tab ---------- */
+    /* One block per parameter, holding however many values that parameter has —
+       the shape the child table produces. */
+    .tnParam { border-top: 1px solid var(--line); padding: 7px 0 4px; }
+    .tnParam:first-child { border-top: none; }
+    .tnParam .tnName {
+      font-family: ui-monospace, Consolas, monospace; font-size: 12px; font-weight: 700;
+    }
+    .tnParam .tnType { font-size: 10px; color: var(--muted); margin-left: 6px; }
+    .tnParam .tnDesc { font-size: 11px; color: var(--muted); margin: 2px 0 5px; }
+    .tnVals { display: flex; flex-direction: column; gap: 3px; }
+    /* One line per value, reading as the query param it will become, with the Use
+       button that injects it. No delete button: this is shared config, and removing
+       a routing rule by accident is not a mistake worth making easy. */
+    .tnVal {
+      display: flex; align-items: center; gap: 7px; font-size: 12px;
+      border: 1px solid transparent; border-radius: 5px; padding: 3px 4px 3px 6px;
+    }
+    .tnVal:hover { background: var(--surface-2); border-color: var(--line); }
+    .tnVal .kv {
+      flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace;
+      word-break: break-all;
+    }
+    .tnVal .kv b { color: var(--accent-d); font-weight: 700; }
+    .tnVal.applied { background: var(--surface-3); border-color: var(--accent); }
+    .tnVal > button { flex: 0 0 auto; }
+    /* Conditions that cannot be expressed as a param you set: a negation, an
+       absence, or a non-URL runtime check. They get no Use button. */
+    .tnVal .why { flex: 0 0 auto; font-size: 10px; color: var(--muted); font-style: italic; }
+    .tnVal .op {
+      flex: 0 0 auto; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+      background: var(--surface-3); color: var(--muted);
+      padding: 1px 5px; border-radius: 3px;
+    }
+    /* Anything other than plain equality is worth spotting at a glance: these are
+       where a flat tenant->params list would give the wrong answer. */
+    .tnVal .op.CONTAINS_CI { background: var(--accent); color: #fff; }
+    .tnVal .op.NOT_EQUALS { background: var(--bad); color: #fff; }
+    .tnVal .op.PRESENT, .tnVal .op.ABSENT { border: 1px dashed var(--line); background: none; }
+    /* The remove button mirrors Use: it appears on an applied row and strips the
+       param back out of the URL. Tinted like a delete so it is not mistaken for Use. */
+    .tnVal .drop { flex: 0 0 auto; color: var(--bad); }
+
+    /* A search box above each list. type="search" gives the native clear affordance;
+       styled to match the panel's other inputs. */
+    .tnFilter {
+      width: 100%; box-sizing: border-box; margin: 0 0 7px;
+      font-size: 12px; padding: 5px 8px;
+      background: var(--surface-2); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 6px;
+    }
+    .tnFilter:focus { outline: none; border-color: var(--accent); }
+    /* When a filter hides everything, the list shows why rather than sitting empty. */
+    .tnEmpty { font-size: 11px; color: var(--muted); font-style: italic; padding: 4px 2px; }
+
+    /* Searchable tenant dropdown. The list is absolutely positioned so it floats
+       over the following rows instead of pushing them down as it opens. */
+    .combo { position: relative; }
+    .combo > input {
+      width: 100%; box-sizing: border-box; font-size: 12px; padding: 5px 8px;
+      background: var(--surface-2); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 6px;
+    }
+    .combo > input:focus { outline: none; border-color: var(--accent); }
+    .comboList {
+      position: absolute; left: 0; right: 0; top: calc(100% + 3px); z-index: 5;
+      max-height: 260px; overflow: auto;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+      box-shadow: 0 12px 28px var(--shadow); padding: 3px;
+    }
+    .comboOpt {
+      font-size: 12px; padding: 5px 8px; border-radius: 4px; cursor: pointer;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .comboOpt:hover, .comboOpt.active { background: var(--surface-2); }
+    .comboOpt.chosen { color: var(--accent-d); font-weight: 700; }
+    .comboOpt .tag { color: var(--muted); font-weight: 400; }
+    .comboEmpty { font-size: 11px; color: var(--muted); font-style: italic; padding: 6px 8px; }
+
+    /* Long lists are capped and scroll inside the card instead of stretching it:
+       max-height, not height, so a short list still collapses to its content. */
+    .tnScroll { max-height: 240px; overflow: auto; }
+    .tnTableScroll { max-height: 320px; overflow: auto; }
+    /* The form row (add/edit) lives in the tfoot; keeping it pinned means it stays
+       reachable no matter how far the tenant list is scrolled. */
+    .tnTableScroll table.map { margin: 0; }
+    .tnTableScroll thead th {
+      position: sticky; top: 0; z-index: 1; background: var(--chrome);
+    }
+    .tnTableScroll tfoot td {
+      position: sticky; bottom: 0; z-index: 1; background: var(--chrome);
+    }
+
+    /* ---------- scrollbars ---------- */
+    /* Thin by default so it takes almost no width from the content, widening on
+       hover over the scrolling element. Chromium keeps ::-webkit-scrollbar, so the
+       track can stay transparent and the thumb can be a pill. */
+    * { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) transparent; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--sb-thumb); border-radius: 999px;
+      /* The border is transparent and clipped to the padding box, which insets the
+         visible pill without changing the hit area — that is what makes a thin bar
+         still easy to grab. */
+      border: 2px solid transparent; background-clip: padding-box;
+    }
+    /* :hover on the scrolling container, not the bar: the thumb is only hoverable
+       once it is already wide enough to hit. */
+    *:hover::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--sb-thumb-hover); }
+    /* Chromium still draws the stepper buttons on Windows unless they are removed. */
+    ::-webkit-scrollbar-button { display: none; }
+
+    /* Separates one table's pair of cards from the next table's pair. */
+    .dbSep {
+      border: none; border-top: 2px solid var(--line);
+      margin: 4px 0 14px;
+    }
+    .dbSub code {
+      background: var(--surface-3); padding: 1px 4px; border-radius: 3px;
+      word-break: break-all;
+    }
+
+    /* Row preview. Scrolls in BOTH directions on its own: a 56-row table would
+       otherwise stretch the card past the window and push every later card out of
+       reach, and a wide one would stretch the panel sideways. */
+    .dbRowsWrap {
+      overflow: auto; margin-top: 8px;
+      max-height: 320px;
+      border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+    }
+    table.dbRows { border-collapse: collapse; font-size: 11px; }
+    table.dbRows th, table.dbRows td {
+      padding: 3px 8px 3px 0; text-align: left; white-space: nowrap;
+      border-top: 1px solid var(--line); font-family: ui-monospace, Consolas, monospace;
+    }
+    /* The header has to stay put while the body scrolls under it, or a long table
+       loses its column names. */
+    table.dbRows th {
+      color: var(--muted); font-weight: 600; border-top: none;
+      position: sticky; top: -6px; background: var(--surface);
+    }
+    table.dbRows td.null { color: var(--muted); font-style: italic; }
+
+    /* Shared card for the forms in the Variables tab, so each reads as its own
+       distinct block. */
+    .formCard {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: 0 1px 5px var(--shadow);
+      padding: 10px; margin-bottom: 14px;
+    }
+    .formCard:last-child { margin-bottom: 0; }
+    .formCardHead { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+    .formCard .hint { margin-top: 8px; }
+    .formCard .hint code { background: var(--surface-3); }
+
+    .injectRow { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .injectRow input {
+      flex: 1 1 110px; min-width: 0; font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .injectRow button { flex: 0 0 auto; }
+    .injectActions { display: flex; gap: 6px; margin-top: 8px; }
+    .injectActions button { font-size: 12px; }
+    .injectMsg {
+      margin-top: 8px; font-size: 11px; padding: 5px 7px; border-radius: 4px;
+      transition: opacity .3s ease; opacity: 1;
+    }
+    .injectMsg.fade { opacity: 0; }
+    .injectMsg.ok   { background: var(--good-bg);   color: var(--good-ink); }
+    .injectMsg.info { background: var(--notice-bg); color: var(--notice-ink); }
+    .injectMsg.bad  { background: var(--bad-bg);    color: var(--bad-ink); }
+
+    .aaRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .aaRow > label { flex: 0 0 132px; font-size: 12px; color: var(--muted); }
+    .aaRow > select { flex: 1; min-width: 0; font-size: 12px; }
+    .aaId {
+      flex: 1; min-width: 0; font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+      background: var(--surface-3); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 6px 8px; overflow-x: auto; white-space: nowrap;
+    }
+    .aaId.unset { color: var(--muted); font-style: italic; font-family: inherit; }
+
     /* code editor + viewer */
     .editorTools { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .editorTools .spacer { flex: 1; }
     .editorTools .label { font-size: 12px; color: var(--muted); }
 
-    .editor { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--code-bg); }
+    .editor {
+      display: flex; border: 1px solid var(--line); border-radius: 6px;
+      overflow: hidden; background: var(--code-bg);
+    }
     .editor .gutter {
       flex: 0 0 auto; padding: 8px 6px; text-align: right;
       font: 12px/1.5 ui-monospace, Consolas, monospace;
-      color: #6d6a86; background: #191725; user-select: none; white-space: pre;
+      color: var(--code-gutter-ink); background: var(--code-gutter);
+      user-select: none; white-space: pre;
     }
     .editor textarea {
       flex: 1; min-width: 0; min-height: 160px; resize: vertical;
@@ -228,35 +844,46 @@
     #resSplit:hover, #resSplit.active { background: var(--accent); }
 
     #resWrap { flex: 0 0 auto; height: 300px; display: flex; flex-direction: column; min-height: 0; }
-    #resMeta { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; }
+    #resMeta {
+      display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+      font-size: 12px; min-height: 33px; box-sizing: border-box;
+    }
     #resMeta .spacer { flex: 1; }
     .pill { font-weight: 700; border-radius: 999px; padding: 2px 8px; color: #fff; background: var(--muted); }
     .pill.s2 { background: var(--ok); }
-    .pill.s3 { background: #2a6fb0; }
+    .pill.s3 { background: var(--info); }
     .pill.s4 { background: var(--warn); }
     .pill.s5, .pill.err { background: var(--bad); }
     #resMeta .meta { color: var(--muted); }
 
-    #resBody { flex: 1; min-height: 0; display: flex; margin: 0 8px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--code-bg); }
+    #resBody {
+      flex: 1; min-height: 0; display: flex; margin: 0 8px;
+      border: 1px solid var(--line); border-radius: 6px;
+      overflow: hidden; background: var(--code-bg);
+    }
     #resBody .gutter {
       flex: 0 0 auto; padding: 8px 6px; text-align: right;
       font: 12px/1.5 ui-monospace, Consolas, monospace;
-      color: #6d6a86; background: #191725; user-select: none; white-space: pre; overflow: hidden;
+      color: var(--code-gutter-ink); background: var(--code-gutter);
+      user-select: none; white-space: pre; overflow: hidden;
     }
     #resBody pre {
       flex: 1; min-width: 0; margin: 0; padding: 8px; overflow: auto;
       font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--code-ink);
       white-space: pre;
     }
-    #resHeaders { flex: 1; min-height: 0; overflow: auto; margin: 0 8px; font: 12px/1.6 ui-monospace, Consolas, monospace; }
+    #resHeaders {
+      flex: 1; min-height: 0; overflow: auto; margin: 0 8px;
+      font: 12px/1.6 ui-monospace, Consolas, monospace;
+    }
     #resHeaders .hk { color: var(--accent); }
 
     /* JSON highlighting */
-    .j-key  { color: #9ad1ff; }
-    .j-str  { color: #b6e59e; }
-    .j-num  { color: #f2b871; }
-    .j-bool { color: #d79cf2; }
-    .j-null { color: #8d8aa8; }
+    .j-key  { color: var(--j-key); }
+    .j-str  { color: var(--j-str); }
+    .j-num  { color: var(--j-num); }
+    .j-bool { color: var(--j-bool); }
+    .j-null { color: var(--j-null); }
 
     #journeyRow {
       display: flex; gap: 6px; align-items: center;
@@ -266,45 +893,173 @@
       flex: 1; min-width: 0; font-size: 12px;
       font-family: ui-monospace, Consolas, monospace;
     }
+
+    /* ---------- fiuConfig panel ---------- */
+    /* Status badge: shows "loaded", "not found", or "param missing" */
+    .fiuStatus {
+      flex: 1; min-width: 0; font-size: 11px;
+      font-family: ui-monospace, Consolas, monospace;
+      color: var(--muted); font-style: italic;
+    }
+    .fiuStatus.ok   { color: var(--ok);  font-style: normal; }
+    .fiuStatus.bad  { color: var(--bad); font-style: normal; }
+    .fiuStatus.warn { color: var(--warn); font-style: normal; }
+
+    /* fiuConfig editor: same dimensions as the body editor */
+    #fiuEditor { min-height: 200px; resize: vertical; }
   </style>
 </head>
 <body>
   <div id="chrome">
+    <div id="tabstrip">
+      <div id="tabsArea">
+        <div id="tablist" role="tablist" aria-label="Open journeys"></div>
+        <button id="newTab" class="icon" title="New tab (Ctrl+T)" aria-label="New tab">+</button>
+      </div>
+    </div>
     <div id="bar">
-      <img id="favicon" src="assets/favicon.ico" alt="" />
-      <button id="back" class="icon" title="Back" aria-label="Back">&#9664;</button>
-      <button id="reload" class="icon" title="Reload" aria-label="Reload">&#8635;</button>
-      <button id="devtools" class="icon" title="Toggle DevTools (F12)" aria-label="Toggle DevTools">&#128295;</button>
-      <button id="apiToggle" class="icon" title="API console (Ctrl+B)" aria-label="Toggle API console"
-              aria-pressed="false">&#123;&nbsp;&#125;</button>
-      <div id="rewriteGroup">
-        <button id="rewriteOpen" title="Rewrite the URL to this protocol/host and open it">
-          &#8594;&nbsp;<span id="rewriteLabel">localhost:3000</span>
-        </button>
-        <button id="rewriteConfig" title="Change the target protocol and host"
-                aria-label="Change rewrite target" aria-expanded="false">&#9662;</button>
+      <div class="barSide" id="barLeft">
+        <div id="menuWrap">
+          <button id="menuBtn" title="Menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">
+            <img id="favicon" src="assets/favicon.ico" alt="" />
+            <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
+        </div>
+        <button id="back" class="icon" title="Back" aria-label="Back">&#9664;</button>
+        <button id="reload" class="icon" title="Reload" aria-label="Reload">&#8635;</button>
+        <div id="rewriteGroup">
+          <button id="rewriteOpen" title="Rewrite the URL to this protocol/host and open it">
+            &#8594;&nbsp;<span id="rewriteLabel">localhost:3000</span>
+          </button>
+          <button id="rewriteConfig" title="Change the target protocol and host"
+                  aria-label="Change rewrite target" aria-expanded="false">&#9662;</button>
+        </div>
       </div>
       <div id="urlWrap">
         <label class="sr" for="url" hidden>Page URL</label>
         <input id="url" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Paste consent-journey URL (e.g. http://localhost:3000/?orgId=...&ecreq=...)" />
-        <button id="histBtn" title="URL history" aria-label="URL history" aria-expanded="false">&#9662;</button>
-        <div id="histPanel" hidden role="dialog" aria-label="URL history"></div>
+               placeholder="Paste consent-journey URL" />
       </div>
-      <button id="go" class="primary">Go</button>
+      <div class="barSide" id="barRight">
+        <button id="go" class="primary">Go</button>
+      </div>
     </div>
     <div id="status" role="status"></div>
+    <div id="notice" role="alert" hidden>
+      <span id="noticeText"></span>
+      <button id="noticeFix" class="tiny">Add /finvu &amp; open</button>
+      <button id="noticeClose" class="tiny" title="Dismiss" aria-label="Dismiss">&#10005;</button>
+    </div>
+    <div id="toast" role="status" hidden>
+      <span id="toastText"></span>
+      <button id="toastOpen" class="tiny">Open folder</button>
+      <button id="toastClose" class="tiny" title="Dismiss" aria-label="Dismiss">&#10005;</button>
+    </div>
+
+    <!-- Shown once per launch: this build disables same-origin enforcement, which
+         is the one thing a user has to know before typing a URL. It is a modal,
+         so it cannot be missed the way a bar in the chrome can. -->
+    <div id="alertBackdrop" hidden>
+      <div id="alertBox" role="alertdialog" aria-modal="true"
+           aria-labelledby="alertTitle" aria-describedby="alertText" tabindex="-1">
+        <div class="cfTitle" id="alertTitle">
+          <span aria-hidden="true">&#9888;</span>
+          <span>Testing tool — same-origin protection is off</span>
+        </div>
+        <p class="cfText" id="alertText">
+          Open AA journeys and <code>localhost</code> only. Any page loaded here can read
+          data from other sites using your cookies, so never sign in to email, banking or
+          anything that matters.
+        </p>
+        <div class="cfActions">
+          <span id="alertExtra" hidden>
+            <button id="alertNever" class="tiny">Don't show again</button>
+            <button id="alertClose" class="tiny" title="Dismiss" aria-label="Dismiss">&#10005;</button>
+          </span>
+          <button id="alertOk" class="tiny primary">OK</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="shell">
-    <aside id="sidebar" hidden aria-label="API console">
+    <aside id="menuPanel" hidden aria-label="Menu">
+      <div id="menuHead">
+        <span class="sbTitle">Menu</span>
+        <div class="spacer"></div>
+        <button id="closeMenu" class="tiny" title="Close menu" aria-label="Close menu">&#10005;</button>
+      </div>
+
+      <nav id="menuItems" aria-label="Tools">
+        <button class="menuItem" id="miDevtools">
+          <span class="mi-ic" aria-hidden="true">&#128295;</span>
+          <span class="mi-label">DevTools</span>
+          <span class="mi-key">F12</span>
+        </button>
+        <button class="menuItem" id="miApi" aria-pressed="false">
+          <span class="mi-ic" aria-hidden="true">&#123;&#125;</span>
+          <span class="mi-label">API console</span>
+          <span class="mi-on" id="miApiOn" hidden aria-hidden="true">&#10003;</span>
+          <span class="mi-key">Ctrl+B</span>
+        </button>
+        <button class="menuItem" id="miMap" aria-pressed="false">
+          <span class="mi-ic" aria-hidden="true">&#9776;</span>
+          <span class="mi-label">AA mapping</span>
+          <span class="mi-on" id="miMapOn" hidden aria-hidden="true">&#10003;</span>
+          <span class="mi-key">Ctrl+M</span>
+        </button>
+        <button class="menuItem" id="miDb" aria-pressed="false">
+          <span class="mi-ic" aria-hidden="true">&#128451;</span>
+          <span class="mi-label">Database</span>
+          <span class="mi-on" id="miDbOn" hidden aria-hidden="true">&#10003;</span>
+          <span class="mi-key">Ctrl+D</span>
+        </button>
+        <button class="menuItem" id="miHist" aria-pressed="false">
+          <span class="mi-ic" aria-hidden="true">&#8634;</span>
+          <span class="mi-label">History</span>
+          <span class="mi-on" id="miHistOn" hidden aria-hidden="true">&#10003;</span>
+          <span class="mi-key">Ctrl+H</span>
+        </button>
+        <!-- Mirrors the HAR pill in the tab strip: same count, same disabled
+             reason, same export. Not a panel, so it has no tick. -->
+        <button class="menuItem" id="miHar">
+          <span class="mi-ic" aria-hidden="true">&#11123;</span>
+          <span class="mi-label">Download HAR</span>
+          <span class="mi-key" id="miHarCount">(0)</span>
+        </button>
+        <!-- Opens docs.html in a tab. Not a panel: it is a page, and it is long. -->
+        <button class="menuItem" id="miDocs">
+          <span class="mi-ic" aria-hidden="true">&#128214;</span>
+          <span class="mi-label">Documentation</span>
+          <span class="mi-key">F1</span>
+        </button>
+      </nav>
+
+      <div id="menuFoot">
+        <span class="menuGroupLabel" id="themeLabel">Appearance</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="themeLabel">
+          <button type="button" data-theme="light"  role="radio" aria-checked="false">Light</button>
+          <button type="button" data-theme="dark"   role="radio" aria-checked="false">Dark</button>
+          <button type="button" data-theme="system" role="radio" aria-checked="false">System</button>
+        </div>
+      </div>
+    </aside>
+
+    <div id="menuDrag" hidden role="separator" aria-orientation="vertical"
+         title="Drag to resize the menu"></div>
+
+    <!-- One resizable column, shared by every panel: the API console and the AA
+         mapping editor are siblings inside it, so only one shows at a time and
+         both inherit the same width and divider. -->
+    <aside id="sidebar" hidden aria-label="Side panel">
       <div id="sbHead">
-        <span class="sbTitle">API Console</span>
+        <span class="sbTitle" id="sbTitle">API Console</span>
         <div class="spacer"></div>
         <button id="flipSide" class="tiny" title="Move panel to the other side">&#8646;</button>
         <button id="closeSb" class="tiny" title="Close panel (Ctrl+B)">&#10005;</button>
       </div>
 
+      <div class="panelBody" id="panelApi">
       <div class="reqLine">
         <label class="sr" for="method" hidden>Method</label>
         <select id="method">
@@ -327,6 +1082,9 @@
         <button data-tab="headers" role="tab" aria-selected="false">Headers</button>
         <button data-tab="body" role="tab" aria-selected="false">Body</button>
         <button data-tab="vars" role="tab" aria-selected="false">Variables</button>
+        <button data-tab="aa" role="tab" aria-selected="false">AA</button>
+        <button data-tab="tenant" role="tab" aria-selected="false">Tenant</button>
+        <button data-tab="fiuconfig" role="tab" aria-selected="false">fiuConfig</button>
       </nav>
 
       <div id="reqArea">
@@ -372,16 +1130,195 @@
             <textarea id="bodyText" spellcheck="false" autocomplete="off"
                       placeholder='{ "key": "value" }'></textarea>
           </div>
-          <p class="hint"><code>//</code> and <code>/* */</code> comments (and the trailing commas they leave behind) are stripped before sending, so you can keep lines commented out.</p>
+          <!-- One chip per {{token}} found in the body. The body is a textarea, so
+               tokens cannot be made hoverable inline the way the URL field's are;
+               these chips are the stand-in and drive the very same popover. -->
+          <div id="bodyVars" hidden>
+            <span class="label">Variables in this body:</span>
+            <span id="bodyVarList"></span>
+          </div>
+          <p class="hint">A variable named after a top-level field overwrites that
+            field when the request is sent, so a dashed chip changes the body even
+            though no <code>{{token}}</code> appears in it.
+            <code>//</code> and <code>/* */</code> comments (and the trailing commas they leave behind) are stripped before sending, so you can keep lines commented out.</p>
         </section>
 
         <section class="pane" data-pane="vars" role="tabpanel" hidden>
-          <table class="kv">
-            <thead><tr><th>Name</th><th>Value</th><th class="act"></th></tr></thead>
-            <tbody id="varRows"></tbody>
-          </table>
-          <button id="addVar" class="tiny">+ Add variable</button>
-          <p class="hint">Use as <code>{{name}}</code> in the URL, headers, body, and API key.</p>
+          <div class="formCard">
+            <div class="formCardHead">Variables</div>
+            <table class="kv">
+              <thead><tr><th>Name</th><th>Value</th><th class="act"></th></tr></thead>
+              <tbody id="varRows"></tbody>
+            </table>
+            <button id="addVar" class="tiny">+ Add variable</button>
+            <p class="hint">Use as <code>{{name}}</code> in the URL, headers, body, and API key.</p>
+          </div>
+
+          <div class="formCard">
+            <div class="formCardHead">Inject a URL param</div>
+            <div id="injRows"></div>
+            <div class="injectActions">
+              <button id="injAdd" class="primary">Add to URL</button>
+              <button id="injNewPair">+ Add new pair</button>
+            </div>
+            <div id="injMsg" class="injectMsg" role="status" hidden></div>
+            <p class="hint">New keys go to the front of the query string, right after
+              the host; existing keys are updated in place. The URL in the top bar reloads.</p>
+          </div>
+        </section>
+
+        <section class="pane" data-pane="aa" role="tabpanel" hidden>
+          <div class="formCard">
+            <div class="formCardHead">Account Aggregator</div>
+            <div class="aaRow">
+              <label for="aaSelect">AA</label>
+              <select id="aaSelect"></select>
+            </div>
+            <div class="aaRow">
+              <label>accountAggregatorId</label>
+              <div id="aaIdDisplay" class="aaId" aria-live="polite"></div>
+            </div>
+            <div class="aaRow">
+              <label>SDK build</label>
+              <div id="aaBuildDisplay" class="aaId" aria-live="polite"></div>
+            </div>
+            <p class="hint">Added to the JSON body when the request is sent. If the body
+              already has an <code>accountAggregatorId</code>, this value replaces it.</p>
+            <p class="hint">The AA is a <strong>build-time</strong> choice in the SDK —
+              <code>Context.setStrategy()</code> imports
+              <code>AAServices/$REACT_APP_AACLASS</code>, so one deployed host serves one
+              AA. If the build's AA does not match the id sent at init,
+              <code>decodeParam</code> fails. The <code>?aaId</code> query param does not
+              switch AA logic; it only picks the S3 config path and branding.</p>
+          </div>
+        </section>
+
+        <!-- Tenant is the FIU-branded UI bundle the SDK renders. It is selected from
+             redirect-URL params, never from the request body, which is why this tab
+             emits query params instead of writing into the JSON. -->
+        <section class="pane" data-pane="tenant" role="tabpanel" hidden>
+          <div class="formCard">
+            <div class="formCardHead">
+              <span>Tenant</span>
+              <button id="tnReload" class="tiny">Refresh</button>
+            </div>
+            <div class="aaRow">
+              <label for="tnBundle">SDK bundle</label>
+              <select id="tnBundle"></select>
+            </div>
+            <div class="aaRow">
+              <label for="tnTenantInput">Tenant</label>
+              <!-- A searchable combobox, not a native <select>: the native one can
+                   only jump to the first match by first letter, it cannot show a
+                   filtered subset while open, which is what was asked for. The
+                   hidden select keeps the same #tnTenant value contract the rest of
+                   the panel reads. -->
+              <div id="tnTenantCombo" class="combo">
+                <input id="tnTenantInput" type="text" role="combobox" autocomplete="off"
+                       aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="tnTenantList" placeholder="Search tenants…" />
+                <div id="tnTenantList" class="comboList" role="listbox" hidden></div>
+                <select id="tnTenant" hidden aria-hidden="true"></select>
+              </div>
+            </div>
+            <div class="aaRow">
+              <label>Component</label>
+              <div id="tnComponent" class="aaId" aria-live="polite"></div>
+            </div>
+            <div id="tnNotes" class="hint" hidden></div>
+            <p class="hint">The SDK routes in priority order, so a lower number wins.
+              The AA is baked into a deployment at build time; the tenant is chosen
+              per URL.</p>
+          </div>
+
+          <div class="formCard">
+            <div class="formCardHead">Routing rules</div>
+            <input id="tnParamsFilter" class="tnFilter" type="search"
+                   placeholder="Filter rules…" aria-label="Filter routing rules" />
+            <div id="tnParams" class="tnScroll"></div>
+            <div id="tnMsg" class="injectMsg" role="status" hidden></div>
+            <p class="hint">These are the conditions the SDK <em>routes</em> on, not every
+              param it accepts. Clicking one injects it into the URL bar, merging with
+              whatever is already there so <code>fi</code>, <code>reqdate</code> and
+              <code>ecreq</code> survive — <code>decryptURL()</code> needs all three, so a
+              URL built from scratch never renders.</p>
+          </div>
+
+          <div class="formCard">
+            <div class="formCardHead">Other accepted params</div>
+            <input id="tnOtherFilter" class="tnFilter" type="search"
+                   placeholder="Filter params…" aria-label="Filter other params" />
+            <div id="tnOtherParams" class="tnScroll"></div>
+            <p class="hint">Read by the SDK but never used to pick a tenant. Click to
+              inject.</p>
+            <div class="injectRow">
+              <input id="tnCustomKey" type="text" placeholder="Key" aria-label="Custom param key" maxlength="200" list="tnCustomKeyList" />
+              <input id="tnCustomValue" type="text" placeholder="Value" aria-label="Custom param value" maxlength="2000" list="tnCustomValueList" />
+            </div>
+            <datalist id="tnCustomKeyList"></datalist>
+            <datalist id="tnCustomValueList"></datalist>
+            <div id="tnCustomMsg" class="injectMsg" role="status" hidden></div>
+            <p class="hint">Free-form param injector: fill both to add it to the URL,
+              clear either to remove it.</p>
+          </div>
+
+          <div class="formCard">
+            <div class="formCardHead">Tenants &amp; export</div>
+            <input id="tnRowsFilter" class="tnFilter" type="search"
+                   placeholder="Filter tenants…" aria-label="Filter tenant table" />
+            <div class="tnTableScroll">
+            <table class="kv map">
+              <thead>
+                <tr><th>Tenant</th><th>Priority</th><th class="act"></th><th class="act"></th></tr>
+              </thead>
+              <tbody id="tnRows"></tbody>
+              <tfoot>
+                <tr id="tnFormRow">
+                  <td><input id="tnName" placeholder="Tenant name" maxlength="200" /></td>
+                  <td><input id="tnPriority" placeholder="Priority" maxlength="6" /></td>
+                  <td class="act" id="tnSaveCell" colspan="2">
+                    <button id="tnSave" class="primary">Save</button>
+                  </td>
+                  <td class="act" id="tnCancelCell" hidden>
+                    <button id="tnCancel">Cancel</button>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+            </div>
+            <div class="injectActions">
+              <button id="tnExport">&#11123; Seed file (.js)</button>
+            </div>
+            <p class="hint">Deleting a tenant removes its parameter values too.
+              <strong>Seed file</strong> writes the current tables to
+              <code>Downloads/Nibble DB/</code> as a runnable
+              <code>tenant-seed.js</code> — commit it to make today's data the
+              first-run baseline. The migration itself is never rewritten, or
+              replaying it elsewhere would build a different database.</p>
+          </div>
+        </section>
+
+        <!-- fiuConfig: reads, decodes, edits and re-encodes the ?fiuConfig=
+             base64url query param from the active page's URL. -->
+        <section class="pane" data-pane="fiuconfig" role="tabpanel" hidden>
+          <div class="formCard" id="fiuCard">
+            <div class="formCardHead">
+              <span>fiuConfig</span>
+              <span id="fiuStatus" class="fiuStatus" aria-live="polite"></span>
+              <button id="fiuApply" class="tiny primary">&#128260; Apply to URL &amp; reload</button>
+            </div>
+            <span id="fiuErr" class="err" aria-live="polite"></span>
+            <div class="editor" style="margin-top:8px">
+              <div class="gutter" id="fiuGutter" aria-hidden="true">1</div>
+              <label class="sr" for="fiuEditor" hidden>fiuConfig JSON</label>
+              <textarea id="fiuEditor" spellcheck="false" autocomplete="off"
+                        placeholder="No fiuConfig param found in the current URL."></textarea>
+            </div>
+            <p class="hint">
+              Decoded from the <code>fiuConfig</code> URL param. Edit and hit
+              <strong>Apply</strong> to re-encode and reload.
+            </p>
+          </div>
         </section>
       </div>
 
@@ -389,7 +1326,7 @@
 
       <div id="resWrap">
         <div id="resMeta">
-          <span id="resPill" class="pill">—</span>
+          <span id="resPill" class="pill" hidden></span>
           <span id="resTime" class="meta"></span>
           <span id="resSize" class="meta"></span>
           <div class="spacer"></div>
@@ -413,6 +1350,96 @@
                   title="Open this URL as-is in the page view">Open</button>
         </div>
       </div>
+      </div><!-- /#panelApi -->
+
+      <div class="panelBody" id="panelMap" hidden>
+        <div class="panelScroll">
+          <div class="formCard">
+            <div class="formCardHead">Saved AAs</div>
+            <!-- One table does the whole job: saved rows, then a last row whose
+                 cells are the inputs. Editing reuses that same row, so there is
+                 no second form to keep in sync and no dialog to open. -->
+            <table class="kv map">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>accountAggregatorId</th>
+                  <th class="act"></th>
+                  <th class="act"></th>
+                </tr>
+              </thead>
+              <tbody id="mapRows"></tbody>
+              <tfoot>
+                <tr id="mapFormRow">
+                  <td>
+                    <label class="sr" for="mapName" hidden>AA name</label>
+                    <input id="mapName" type="text" spellcheck="false" autocomplete="off"
+                           placeholder="AA name" maxlength="200" />
+                  </td>
+                  <td>
+                    <label class="sr" for="mapAaId" hidden>accountAggregatorId</label>
+                    <input id="mapAaId" type="text" spellcheck="false" autocomplete="off"
+                           placeholder="accountAggregatorId" maxlength="200" />
+                  </td>
+                  <!-- Spans both action columns, so it lines up with the Edit and
+                       ✕ buttons above it. In edit mode the span drops to 1 and
+                       Cancel takes the second cell. -->
+                  <td class="act" id="mapSaveCell" colspan="2">
+                    <button id="mapSave" class="primary">Save</button>
+                  </td>
+                  <td class="act" id="mapCancelCell" hidden>
+                    <button id="mapCancel">Cancel</button>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+            <div id="mapMsg" class="injectMsg" role="status" hidden></div>
+            <p class="hint">The <strong>AA</strong> tab in the API console is rebuilt from
+              this list. Name and id are both unique, ignoring case.</p>
+          </div>
+
+          <div class="formCard">
+            <div class="formCardHead">Download</div>
+            <div class="injectActions">
+              <button id="mapDlDb">&#11123; Database (.db)</button>
+            </div>
+            <p class="hint">Written to <code>Downloads/Nibble DB/</code>. A copy of the
+              live <code>nibble.db</code> — every table, not just this one — openable in
+              any SQLite tool.</p>
+          </div>
+        </div>
+      </div><!-- /#panelMap -->
+
+      <!-- URL history. Was a popup under the URL bar; it is a panel now, so a long
+           list can be read without covering the page. -->
+      <div class="panelBody" id="panelHist" hidden>
+        <div class="panelScroll">
+          <div class="formCard">
+            <div class="formCardHead">
+              <span id="histCount">History</span>
+              <button id="histClear" class="tiny">Clear all</button>
+            </div>
+            <div id="histList"></div>
+            <p class="hint">The last 50 URLs opened from the top bar, newest first.
+              Click one to open it in a new tab.</p>
+          </div>
+        </div>
+      </div><!-- /#panelHist -->
+
+      <!-- Database browser. Everything here is read from SQLite's own pragmas, so
+           it shows what is actually in the file rather than a description of it. -->
+      <div class="panelBody" id="panelDb" hidden>
+        <div class="panelScroll">
+          <div class="formCard">
+            <div class="formCardHead">
+              <span>File</span>
+              <button id="dbRefresh" class="tiny">Refresh</button>
+            </div>
+            <div id="dbFile" class="dbMeta"></div>
+          </div>
+          <div id="dbTables"></div>
+        </div>
+      </div><!-- /#panelDb -->
     </aside>
 
     <div id="dragbar" hidden role="separator" aria-orientation="vertical" title="Drag to resize panel"></div>
@@ -431,16 +1458,8 @@
       <label for="rwHost">Host</label>
       <input id="rwHost" type="text" spellcheck="false" autocomplete="off" placeholder="localhost:3000" />
     </div>
-    <div class="rwRow">
-      <label for="rwParams">Params</label>
-      <input id="rwParams" type="text" spellcheck="false" autocomplete="off"
-             placeholder="orgId=abc&amp;foo=bar" />
-    </div>
-    <div class="rwRow rwActions">
-      <button id="rwApplyParams" disabled>Add params &amp; open</button>
-    </div>
-    <p class="hint">Params are empty by default, so nothing is appended. Press
-      <strong>Enter</strong> in any field to apply and open straight away.</p>
+    <p class="hint">Press <strong>Enter</strong> to apply and open straight away.
+      A custom value is used once, then reverts to <code>http://localhost:3000</code>.</p>
   </div>
 
   <div id="varPop" hidden role="dialog" aria-label="Edit variable">
@@ -452,7 +1471,24 @@
     </div>
   </div>
 
+  <!-- Themed confirm, used instead of window.confirm so a destructive action asks
+       in the app's own light/dark styling. Driven by NibbleUI.confirm(). -->
+  <div id="confirmBackdrop" hidden>
+    <div id="confirmBox" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"
+         aria-describedby="confirmText">
+      <div class="cfTitle" id="confirmTitle">Are you sure?</div>
+      <p class="cfText" id="confirmText"></p>
+      <div class="cfActions">
+        <button id="confirmCancel" class="tiny">Cancel</button>
+        <button id="confirmOk" class="tiny primary danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
   <script src="api-panel.js"></script>
+  <script src="aa-mapping.js"></script>
+  <script src="tenant-panel.js"></script>
+  <script src="fiuConfig-panel.js"></script>
 </body>
 </html>

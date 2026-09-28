@@ -19,7 +19,18 @@
   const varRows     = document.getElementById('varRows');
   const addVar      = document.getElementById('addVar');
 
+  const injRows     = document.getElementById('injRows');
+  const injAdd      = document.getElementById('injAdd');
+  const injNewPair  = document.getElementById('injNewPair');
+  const injMsg      = document.getElementById('injMsg');
+
+  const aaSelect    = document.getElementById('aaSelect');
+  const aaIdDisplay = document.getElementById('aaIdDisplay');
+  const aaBuildDisplay = document.getElementById('aaBuildDisplay');
+
   const bodyText    = document.getElementById('bodyText');
+  const bodyVars    = document.getElementById('bodyVars');
+  const bodyVarList = document.getElementById('bodyVarList');
   const bodyGutter  = document.getElementById('bodyGutter');
   const bodyErr     = document.getElementById('bodyErr');
   const beautifyBtn = document.getElementById('beautify');
@@ -48,6 +59,7 @@
     body: 'nibble.api.body',
     resH: 'nibble.api.resHeight',
     journey: 'nibble.api.journeyUrl',
+    aa: 'nibble.api.aa',
   };
 
   // Shipped default: the path is pre-filled, the host lives in {{baseUrl}} so it
@@ -55,6 +67,37 @@
   const DEFAULT_PATH = '/web/multi-consent/initiate/phone-number';
   const DEFAULT_URL = `{{baseUrl}}${DEFAULT_PATH}`;
   const BASE_VAR = 'baseUrl';
+  const PHONE_VAR = 'phoneNumber';
+  const TRACKING_VAR = 'trackingId';
+
+  // Seeded on a first run, and back-filled for an existing install that predates
+  // one of them — a token with no variable row is unresolved, which blocks Send.
+  const SEED_VARS = [
+    [BASE_VAR, 'https://fiupreprod.ignosis.ai/fiu/api/pirimid'],
+    [PHONE_VAR, '0000000000'],
+    [TRACKING_VAR, 'DEFAULT'],
+  ];
+
+  // The usual initiate payload. phoneNumber and trackingId are {{tokens}} rather
+  // than literals so they can be changed from the hover card instead of by editing
+  // JSON, and the commented-out entries are kept: `//` comments are stripped before
+  // the request is sent, so they work as toggles the way they do in Postman.
+  const DEFAULT_BODY = `{
+    "phoneNumber": "{{${PHONE_VAR}}}",
+    "templateTypes": [
+        "UNDERWRITING"
+        // ,"MONITORING"
+        // ,"COLLECTIONS"
+        // "PFM"
+    ],
+    "trackingId": "{{${TRACKING_VAR}}}",
+    "fipIds": [
+        "FIP-ID"
+        // ,"IGNOSIS_FIP_UAT"
+    ],
+    "redirectionUrl": "http://google.com",
+    "accountAggregatorId": "onemoney"
+}`;
 
   /* ---------------------------- persistence ---------------------------- */
 
@@ -76,6 +119,7 @@
     save(K.headers, JSON.stringify(readRows(headerRows)));
     save(K.vars, JSON.stringify(readRows(varRows)));
     renderUrl(); // token colours depend on which variables are set
+    renderBodyVars();          // and so do the body chips
   }
 
   /* ---------------------------- key/value rows ---------------------------- */
@@ -180,6 +224,7 @@
     syncBodyGutter();
     save(K.body, bodyText.value);
     bodyErr.textContent = '';
+    renderBodyVars();   // a token can be typed or deleted at any time
   });
   bodyText.addEventListener('scroll', () => { bodyGutter.scrollTop = bodyText.scrollTop; });
 
@@ -279,6 +324,49 @@
       if (missing) missing.add(name);
       return full;
     });
+  }
+
+  // A variable whose NAME matches a key in the body replaces that key's value on
+  // send. That is what makes the phone number editable from the hover card even
+  // when the JSON holds a literal rather than a {{token}}, and it generalises: add
+  // a variable called `trackingId` and the body's trackingId is overwritten too.
+  //
+  // Only TOP-LEVEL keys are considered. Matching at any depth would let a variable
+  // silently reach into nested objects it was never meant to touch.
+  //
+  // Types are preserved rather than flattened to strings:
+  //   - existing string (or null) -> the variable is used verbatim as a string.
+  //     This matters for "0000000000", which would otherwise JSON.parse to 0.
+  //   - anything else (array, object, number, boolean) -> the variable is parsed as
+  //     JSON, so `["UNDERWRITING","MONITORING"]` replaces an array properly. If it
+  //     does not parse, the key is left untouched and reported, rather than turning
+  //     an array into a string.
+  function applyVarsToBodyKeys(obj) {
+    const applied = [];
+    const skipped = [];
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { applied, skipped };
+
+    for (const { key, value } of readRows(varRows)) {
+      const name = key.trim();
+      // An empty value means "unset", the same as it does for {{tokens}}, so it
+      // does not wipe whatever the body already has.
+      if (!name || value === '') continue;
+      if (!Object.prototype.hasOwnProperty.call(obj, name)) continue;
+
+      const current = obj[name];
+      if (typeof current === 'string' || current === null) {
+        obj[name] = value;
+        applied.push(name);
+        continue;
+      }
+      try {
+        obj[name] = JSON.parse(value);
+        applied.push(name);
+      } catch {
+        skipped.push(name);
+      }
+    }
+    return { applied, skipped };
   }
 
   /* ---------------------------- URL editor with {{var}} tokens ---------------------------- */
@@ -441,6 +529,80 @@
     if (tok) { openVarPop(tok); vpValue.focus(); vpValue.select(); }
   });
 
+  /* ---- the same card, for {{tokens}} in the body ---- */
+  // The body is a plain textarea, so a token inside the JSON cannot be wrapped in
+  // a hoverable span the way the URL field's are. Instead every token found in the
+  // body gets a chip underneath it, and the chips carry the same data-var contract
+  // openVarPop expects — so hovering one opens the identical card and editing it
+  // writes straight back to the Variables tab.
+  function renderBodyVars() {
+    // Tokens written into the JSON, substituted textually before it is parsed.
+    const tokens = [];
+    const re = /\{\{\s*([\w.-]+)\s*\}\}/g;
+    let m;
+    while ((m = re.exec(bodyText.value))) {
+      if (!tokens.includes(m[1])) tokens.push(m[1]);
+    }
+
+    // Variables that will overwrite a top-level key by NAME on send, even though
+    // no token appears in the JSON. Shown so the rewrite is visible before it
+    // happens rather than being a surprise in the sent payload.
+    const keyMatches = [];
+    try {
+      const parsed = JSON.parse(cleanBody(bodyText.value));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const { key, value } of readRows(varRows)) {
+          const name = key.trim();
+          if (!name || value === '') continue;
+          if (!Object.prototype.hasOwnProperty.call(parsed, name)) continue;
+          // A token already covers it; do not list the same variable twice.
+          if (tokens.includes(name) || keyMatches.includes(name)) continue;
+          keyMatches.push(name);
+        }
+      }
+    } catch {
+      // Half-typed JSON: fall back to showing tokens only.
+    }
+
+    bodyVars.hidden = tokens.length === 0 && keyMatches.length === 0;
+    bodyVarList.textContent = '';
+    const map = varMap();
+
+    for (const name of tokens) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `bodyTok${map.has(name) ? '' : ' unset'}`;
+      chip.dataset.var = name;
+      chip.textContent = `{{${name}}}`;
+      chip.title = `Click or hover to set ${name}`;
+      bodyVarList.appendChild(chip);
+    }
+
+    for (const name of keyMatches) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'bodyTok keyMatch';
+      chip.dataset.var = name;
+      chip.textContent = name;
+      chip.title = `The "${name}" variable overwrites the "${name}" field in the body on send.`
+                 + ` Click or hover to change it.`;
+      bodyVarList.appendChild(chip);
+    }
+  }
+
+  bodyVarList.addEventListener('mouseover', (e) => {
+    const tok = e.target instanceof Element ? e.target.closest('.bodyTok') : null;
+    if (tok) openVarPop(tok);
+  });
+  bodyVarList.addEventListener('mouseout', (e) => {
+    const tok = e.target instanceof Element ? e.target.closest('.bodyTok') : null;
+    if (tok) scheduleClose();
+  });
+  bodyVarList.addEventListener('click', (e) => {
+    const tok = e.target instanceof Element ? e.target.closest('.bodyTok') : null;
+    if (tok) { openVarPop(tok); vpValue.focus(); vpValue.select(); }
+  });
+
   varPop.addEventListener('mouseenter', () => {
     if (popTimer) { clearTimeout(popTimer); popTimer = null; }
   });
@@ -453,6 +615,74 @@
   vpValue.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closeVarPop(); apiUrlEl.focus(); }
     if (e.key === 'Enter') { e.preventDefault(); closeVarPop(); }
+  });
+
+  /* ---------------------------- account aggregator ---------------------------- */
+
+  // Name -> accountAggregatorId. That pair is all the request needs.
+  //
+  // This is only the fallback list. The real one comes from the aa_mapping table
+  // via __nibbleAaReload() at the bottom of this file; these values are what the
+  // dropdown shows for the moment before the database answers, and what it keeps
+  // if the database cannot be read at all.
+  //
+  // Ids are from AccountAggregatorIds.java / AAFolderMappings.java. They must match
+  // the AA the SDK host was built with, or decodeParam fails.
+  let AA_OPTIONS = [
+    { name: 'SAAFE (preprod)', id: 'dashboard-aa-preprod', aaclass: 'SAAFE', sdkFolder: 'AAServices/SAAFE', env: 'preprod' },
+    { name: 'SAAFE', id: 'saafe', aaclass: 'SAAFE', sdkFolder: 'AAServices/SAAFE', env: 'prod' },
+    { name: 'CAMS', id: 'AA00022277', aaclass: 'CAMS', sdkFolder: 'AAServices/CAMS', env: 'prod' },
+    { name: 'ONEMONEY', id: 'onemoney', aaclass: 'ONEMONEY', sdkFolder: 'AAServices/ONEMONEY', env: 'prod' },
+    { name: 'NADL', id: 'AA00023404', aaclass: 'NADL', sdkFolder: 'AAServices/NADL', env: 'prod' },
+    { name: 'Anumati', id: 'Anumati', aaclass: 'ANUMATI', sdkFolder: 'AAServices/ANUMATI', env: 'prod' },
+    { name: 'CookieJar (Finvu)', id: 'cookiejaraalive@finvu', aaclass: 'FINVU', sdkFolder: 'AAServices/FINVU', env: 'prod' },
+  ];
+  const AA_DEFAULT = 'dashboard-aa-preprod';
+
+  function buildAaOptions() {
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '— Don\u2019t set —';
+    aaSelect.appendChild(none);
+
+    for (const { name, id } of AA_OPTIONS) {
+      const o = document.createElement('option');
+      o.value = id;
+      o.textContent = name;
+      aaSelect.appendChild(o);
+    }
+  }
+
+  function refreshAaDisplay() {
+    const id = aaSelect.value;
+    const opt = AA_OPTIONS.find((o) => o.id === id);
+
+    if (id) {
+      aaIdDisplay.textContent = id;
+      aaIdDisplay.classList.remove('unset');
+    } else {
+      aaIdDisplay.textContent = 'not set — the body is sent as-is';
+      aaIdDisplay.classList.add('unset');
+    }
+
+    // The build-time half of the AA choice: what the SDK host must have been built
+    // with for this id to decode. Only known for rows the registry has tagged.
+    const parts = [];
+    if (opt && opt.aaclass) parts.push(`yarn start ${opt.aaclass.toLowerCase()} <env>`);
+    if (opt && opt.sdkFolder) parts.push(opt.sdkFolder);
+    if (opt && opt.env) parts.push(`env: ${opt.env}`);
+    if (parts.length) {
+      aaBuildDisplay.textContent = parts.join('  ·  ');
+      aaBuildDisplay.classList.remove('unset');
+    } else {
+      aaBuildDisplay.textContent = 'not recorded for this AA';
+      aaBuildDisplay.classList.add('unset');
+    }
+  }
+
+  aaSelect.addEventListener('change', () => {
+    save(K.aa, aaSelect.value);
+    refreshAaDisplay();
   });
 
   /* ---------------------------- response rendering ---------------------------- */
@@ -487,9 +717,12 @@
 
   resPre.addEventListener('scroll', () => { resGutter.scrollTop = resPre.scrollTop; });
 
+  // The pill stays out of the DOM flow until there is a real status to show —
+  // an em-dash placeholder just looked like a button that did nothing.
   function setPill(cls, label) {
     resPill.className = 'pill ' + cls;
     resPill.textContent = label;
+    resPill.hidden = false;
   }
 
   function fmtSize(n) {
@@ -574,8 +807,9 @@
     const skipBody = method === 'GET' || method === 'HEAD';
     if (rawBody.trim() && !skipBody) {
       const cleaned = applyVars(cleanBody(rawBody), map, missing);
+      let parsedBody;
       try {
-        JSON.parse(cleaned);
+        parsedBody = JSON.parse(cleaned);
       } catch (err) {
         bodyErr.textContent = 'Invalid JSON: ' + err.message;
         setPill('err', 'ERR');
@@ -585,7 +819,24 @@
         return;
       }
       bodyErr.textContent = '';
-      body = cleaned;
+
+      // Variables matching a top-level key overwrite it...
+      const keyed = applyVarsToBodyKeys(parsedBody);
+
+      // ...and the AA tab wins over both the body and a variable of the same name,
+      // because it is the explicit control for that field.
+      const aaId = aaSelect.value;
+      const isPlainObject = parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody);
+      if (aaId && isPlainObject) parsedBody.accountAggregatorId = aaId;
+
+      // Only re-serialise when something actually changed, so an untouched body is
+      // sent exactly as written rather than silently reformatted.
+      const changed = keyed.applied.length > 0 || (aaId && isPlainObject);
+      body = changed ? JSON.stringify(parsedBody, null, 2) : cleaned;
+
+      if (keyed.skipped.length) {
+        bodyErr.textContent = `Left alone (value is not valid JSON for that field): ${keyed.skipped.join(', ')}`;
+      }
     } else if (rawBody.trim() && skipBody) {
       bodyErr.textContent = `Body ignored for ${method} requests.`;
     }
@@ -651,6 +902,11 @@
     if (found) {
       journeyUrl.value = found;
       save(K.journey, found);
+      // Auto-open, so Send is the only click needed. Gated on a 2xx: an error
+      // response (e.g. a 404 whose body still carries some URL) must not navigate
+      // away. The Open button stays for re-opening or opening a non-2xx result by
+      // hand. openJourney() is the same path the button uses.
+      if (s >= 200 && s < 300) openJourney(found);
     }
   }
 
@@ -673,6 +929,213 @@
 
   /* ---------------------------- journey URL tools ---------------------------- */
 
+  /* ---------------------------- inject URL params ---------------------------- */
+  // Acts on the URL in the top bar. Per pair, three outcomes:
+  //   1. key and value both already present -> leave alone
+  //   2. key present with a different value  -> update in place (position kept)
+  //   3. key absent                          -> added at the FRONT of the query
+  // The URL only reloads if something actually changed.
+
+  let injMsgTimer = null;
+  let injFadeTimer = null;
+
+  function showInjMsg(text, kind) {
+    if (injMsgTimer) clearTimeout(injMsgTimer);
+    if (injFadeTimer) clearTimeout(injFadeTimer);
+    injMsg.textContent = text;
+    injMsg.className = 'injectMsg ' + kind;
+    injMsg.hidden = false;
+    injFadeTimer = setTimeout(() => injMsg.classList.add('fade'), 2600);
+    injMsgTimer = setTimeout(() => { injMsg.hidden = true; }, 3000);
+  }
+
+  function updateInjRemoveButtons() {
+    const rows = injRows.querySelectorAll('.injectRow');
+    rows.forEach((tr) => {
+      const rm = tr.querySelector('button.rm');
+      if (rm) rm.hidden = rows.length < 2;
+    });
+  }
+
+  function makeInjRow(key = '', value = '') {
+    const row = document.createElement('div');
+    row.className = 'injectRow';
+
+    const inK = document.createElement('input');
+    inK.type = 'text';
+    inK.value = key;
+    inK.spellcheck = false;
+    inK.autocomplete = 'off';
+    inK.placeholder = 'key (e.g. orgId)';
+    inK.setAttribute('aria-label', 'Param key');
+
+    const inV = document.createElement('input');
+    inV.type = 'text';
+    inV.value = value;
+    inV.spellcheck = false;
+    inV.autocomplete = 'off';
+    inV.placeholder = 'value';
+    inV.setAttribute('aria-label', 'Param value');
+
+    for (const f of [inK, inV]) {
+      f.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); injectParams(); }
+      });
+    }
+
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'tiny rm';
+    rm.textContent = '\u2715';
+    rm.title = 'Remove this pair';
+    rm.setAttribute('aria-label', 'Remove this pair');
+    rm.addEventListener('click', () => { row.remove(); updateInjRemoveButtons(); });
+
+    row.append(inK, inV, rm);
+    injRows.appendChild(row);
+    updateInjRemoveButtons();
+    return row;
+  }
+
+  function readInjRows() {
+    return Array.from(injRows.querySelectorAll('.injectRow')).map((row) => {
+      const [k, v] = row.querySelectorAll('input');
+      return { key: k.value.trim(), value: v.value };
+    });
+  }
+
+  // After navigating, the page may redirect and drop what we just added. Re-read
+  // the real URL and say so rather than leaving a misleading success message.
+  async function verifyInjection(expected) {
+    await new Promise((r) => setTimeout(r, 1600));
+    const live = await window.NibbleNav.getLiveUrl();
+    if (!live) return;
+    let u;
+    try {
+      u = new URL(live);
+    } catch {
+      return;
+    }
+    const lost = expected.filter(({ key, value }) => u.searchParams.get(key) !== value);
+    if (!lost.length) return;
+    showInjMsg(
+      `The page navigated and dropped ${lost.map((p) => p.key).join(', ')}. `
+      + 'Re-add after it settles, or add it before opening the journey.',
+      'bad',
+    );
+  }
+
+  async function injectParams() {
+    const pairs = readInjRows().filter((p) => p.key);
+    if (!pairs.length) {
+      showInjMsg('Enter a key first.', 'bad');
+      return;
+    }
+
+    // Prefer the page's real URL; fall back to the bar if nothing is loaded yet.
+    const live = await window.NibbleNav.getLiveUrl();
+    const raw = live || String(window.NibbleNav.getPageUrl() || '').trim();
+    if (!raw) {
+      showInjMsg('No URL in the top bar to add params to.', 'bad');
+      return;
+    }
+
+    const abs = /^https?:\/\//i.test(raw) ? raw : 'http://' + raw;
+    let u;
+    try {
+      u = new URL(abs);
+    } catch {
+      showInjMsg('The URL in the top bar could not be parsed.', 'bad');
+      return;
+    }
+
+    // Work on the query as an ordered list so new keys can go to the front while
+    // existing keys keep their original position.
+    const entries = Array.from(u.searchParams.entries()).map(([k, v]) => [k, v]);
+    const fresh = [];
+
+    const added = [];
+    const updated = [];
+    const same = [];
+
+    for (const { key, value } of pairs) {
+      const idx = entries.findIndex(([k]) => k === key);
+
+      if (idx !== -1) {
+        const existing = entries[idx][1];
+        if (existing === value) {
+          same.push({ key, value });          // case 1
+          continue;
+        }
+        updated.push({ key, from: existing, to: value }); // case 2
+        entries[idx][1] = value;
+        // Collapse any later duplicates of the same key, matching set() semantics.
+        for (let i = entries.length - 1; i > idx; i--) {
+          if (entries[i][0] === key) entries.splice(i, 1);
+        }
+        continue;
+      }
+
+      // Same key twice within one submit: last value wins, still one new pair.
+      const fIdx = fresh.findIndex(([k]) => k === key);
+      if (fIdx !== -1) {
+        fresh[fIdx][1] = value;
+        continue;
+      }
+      added.push({ key, value });             // case 3
+      fresh.push([key, value]);
+    }
+
+    const show = (s) => (s === '' ? '(empty)' : s);
+
+    // Case 1 only — nothing to do.
+    if (!added.length && !updated.length) {
+      showInjMsg(
+        same.length === 1
+          ? `${same[0].key}=${show(same[0].value)} is already in the URL.`
+          : `All ${same.length} pairs are already in the URL.`,
+        'info',
+      );
+      return;
+    }
+
+    // New pairs first, then the existing query in its original order.
+    const sp = new URLSearchParams();
+    for (const [k, v] of fresh) sp.append(k, v);
+    for (const [k, v] of entries) sp.append(k, v);
+    u.search = sp.toString();
+
+    const next = u.toString();
+    window.NibbleNav.setPageUrl(next);
+    window.NibbleNav.navigate(next);
+
+    let msg;
+    if (added.length === 1 && !updated.length && !same.length) {
+      msg = `Added ${added[0].key}=${show(added[0].value)} and reloaded.`;
+    } else if (updated.length === 1 && !added.length && !same.length) {
+      msg = `Updated ${updated[0].key}: ${show(updated[0].from)} → ${show(updated[0].to)} and reloaded.`;
+    } else {
+      const bits = [];
+      if (added.length) bits.push(`added ${added.length}`);
+      if (updated.length) bits.push(`updated ${updated.length}`);
+      if (same.length) bits.push(`${same.length} already there`);
+      msg = bits.join(', ').replace(/^./, (c) => c.toUpperCase()) + ' — reloaded.';
+    }
+    showInjMsg(msg, 'ok');
+
+    // Confirm the page kept them.
+    verifyInjection([
+      ...fresh.map(([key, value]) => ({ key, value })),
+      ...updated.map((p) => ({ key: p.key, value: p.to })),
+    ]);
+  }
+
+  injAdd.addEventListener('click', injectParams);
+  injNewPair.addEventListener('click', () => {
+    const row = makeInjRow();
+    row.querySelector('input').focus();
+  });
+
   /* ---------------------------- journey URL ---------------------------- */
 
   journeyUrl.addEventListener('input', () => save(K.journey, journeyUrl.value));
@@ -680,11 +1143,13 @@
   // Opens the URL exactly as-is. If it is a shortener link the page view follows
   // the redirect itself, which leaves the real journey URL (with its ?ecreq=...
   // query) in the top URL bar — ready for the "→ local" button up there.
-  openBtn.addEventListener('click', () => {
-    const v = journeyUrl.value.trim();
+  function openJourney(u) {
+    const v = (u != null ? u : journeyUrl.value).trim();
     if (!v) return;
     window.NibbleNav.navigate(v);
-  });
+  }
+
+  openBtn.addEventListener('click', () => openJourney());
 
   journeyUrl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') openBtn.click();
@@ -724,7 +1189,11 @@
 
   methodSel.value = load(K.method, 'POST');
   apiKeyInput.value = load(K.apiKey, '');
-  bodyText.value = load(K.body, '');
+  // An empty saved body counts as "no body yet" and gets the default back. Only a
+  // body you have actually written is preserved.
+  const savedBody = localStorage.getItem(K.body);
+  bodyText.value = (savedBody === null || savedBody.trim() === '') ? DEFAULT_BODY : savedBody;
+  save(K.body, bodyText.value);
   journeyUrl.value = load(K.journey, '');
 
   const savedH = parseInt(load(K.resH, ''), 10);
@@ -732,17 +1201,59 @@
 
   for (const r of loadJson(K.headers, [])) makeRow(headerRows, r.key, r.value);
 
-  // Variables: on a first run, seed an empty {{baseUrl}} so the default URL has
-  // a token to hover and paste into.
+  // Variables: seed the two the shipped defaults refer to. An existing install
+  // keeps whatever it has; a missing one is back-filled rather than left blank,
+  // because a token with no row is unresolved and blocks Send.
   const savedVars = loadJson(K.vars, null);
   if (savedVars) {
     for (const r of savedVars) makeRow(varRows, r.key, r.value);
-  } else {
-    makeRow(varRows, BASE_VAR, '');
+  }
+  const haveVar = (name) => readRows(varRows).some((r) => r.key.trim() === name);
+  for (const [name, value] of SEED_VARS) {
+    if (!haveVar(name)) makeRow(varRows, name, value);
   }
 
   if (!headerRows.children.length) makeRow(headerRows);
   if (!varRows.children.length) makeRow(varRows);
+  // Whatever the rows ended up as, persist them so the seeded values survive a
+  // restart, and draw the body chips from them.
+  persistRows();
+
+  // The inject form always starts with one empty pair.
+  makeInjRow();
+
+  buildAaOptions();
+  const savedAa = load(K.aa, null);
+  const validAa = savedAa !== null
+    && (savedAa === '' || AA_OPTIONS.some((o) => o.id === savedAa));
+  aaSelect.value = validAa ? savedAa : AA_DEFAULT;
+  refreshAaDisplay();
+
+  // The dropdown's real contents live in the aa_mapping table. Startup above is
+  // synchronous and a database read is not, so the fallback list is shown first
+  // and swapped out as soon as the main process answers — fast enough to be
+  // invisible. aa-mapping.js calls this again after every add/edit/delete, so
+  // the two tabs can never disagree about which AAs exist.
+  window.__nibbleAaReload = async function reloadAa() {
+    const res = await nb.aaMap.list();
+    if (!res || !res.ok) return;   // unreadable DB: keep the fallback list
+
+    AA_OPTIONS = res.rows.map((r) => ({
+      name: r.name,
+      id: r.aaId,
+      aaclass: r.aaclass || '',
+      sdkFolder: r.sdkFolder || '',
+      env: r.env || '',
+    }));
+
+    const keep = aaSelect.value;   // don't lose the user's pick on a redraw
+    aaSelect.textContent = '';     // buildAaOptions appends, so clear first
+    buildAaOptions();
+    aaSelect.value = AA_OPTIONS.some((o) => o.id === keep) ? keep : '';
+    save(K.aa, aaSelect.value);
+    refreshAaDisplay();
+  };
+  window.__nibbleAaReload();
 
   // URL last, so token colouring can see the variable rows.
   const savedUrl = localStorage.getItem(K.url);
