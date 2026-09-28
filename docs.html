@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nibble — Documentation</title>
+  <style>
+    /* Standalone: this page is loaded into a tab as file://, so it cannot share
+       the shell's stylesheet. The palette is copied from index.html so the two
+       do not look like different products. The theme arrives as ?theme=dark|light
+       because the shell's choice is its own setting, not the OS one — Nibble
+       deliberately leaves Chromium's nativeTheme alone. */
+    :root {
+      --bg: #f4f2f7; --surface: #fbfafd; --surface-2: #efedf4; --surface-3: #e5e2ec;
+      --ink: #221f29; --muted: #5d5869; --line: #d9d5e0;
+      --accent: #6c4cc4; --accent-d: #58389f;
+      --bad: #b3261e; --bad-bg: #fdecea; --bad-line: #f3c4c0;
+      --warn-bg: #fff6e0; --warn-line: #eddcae; --warn-ink: #6b5310;
+      --shadow: rgba(40, 32, 60, .10);
+      --sb-thumb: #c4bfd0; --sb-thumb-hover: #9a93ab;
+    }
+    html[data-theme="dark"] {
+      --bg: #17151f; --surface: #201d29; --surface-2: #272334; --surface-3: #322d41;
+      --ink: #e7e4ee; --muted: #a9a3b8; --line: #3a3448;
+      --accent: #9a7ff0; --accent-d: #b49cff;
+      --bad: #ff8a80; --bad-bg: #3a1f1f; --bad-line: #5b2b2b;
+      --warn-bg: #332a12; --warn-line: #574722; --warn-ink: #f0dfae;
+      --shadow: rgba(0, 0, 0, .45);
+      --sb-thumb: #453e58; --sb-thumb-hover: #6b6186;
+    }
+    * { box-sizing: border-box; }
+    /* Matches the shell: thin pill, widening when you reach for it. */
+    * { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) transparent; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--sb-thumb); border-radius: 999px;
+      border: 2px solid transparent; background-clip: padding-box;
+    }
+    *:hover::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--sb-thumb-hover); }
+    ::-webkit-scrollbar-button { display: none; }
+    body {
+      margin: 0; padding: 28px 24px 60px;
+      background: var(--bg); color: var(--ink);
+      font: 14px/1.6 system-ui, "Segoe UI", sans-serif;
+    }
+    main { max-width: 820px; margin: 0 auto; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 26px; }
+    h2 {
+      font-size: 17px; margin: 32px 0 10px;
+      padding-bottom: 6px; border-bottom: 1px solid var(--line);
+    }
+    h3 { font-size: 14px; margin: 20px 0 6px; }
+    p, li { margin: 0 0 9px; }
+    ul, ol { margin: 0 0 12px; padding-left: 22px; }
+    code {
+      font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+      background: var(--surface-3); padding: 1px 5px; border-radius: 3px;
+    }
+    pre {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px; overflow-x: auto; margin: 0 0 12px;
+    }
+    pre code { background: none; padding: 0; }
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 1px 5px var(--shadow); padding: 14px 16px; margin: 0 0 14px;
+    }
+    .danger { background: var(--bad-bg); border-color: var(--bad-line); }
+    .danger strong { color: var(--bad); }
+    .warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+    .pill {
+      display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+      text-transform: uppercase; color: #fff; background: var(--accent);
+      padding: 2px 8px; border-radius: 999px; margin-bottom: 8px;
+    }
+    kbd {
+      font-family: inherit; font-size: 12px; background: var(--surface-3);
+      border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+      padding: 1px 5px;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 0 0 14px; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    footer {
+      margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 13px;
+    }
+    footer h2 { border: none; margin-top: 0; }
+    footer a { color: var(--accent-d); }
+    .credits { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+    .credits h3 { margin-top: 0; }
+    .credits ul { padding-left: 18px; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Nibble</h1>
+  <p class="sub">A tiny Electron browser with a built-in API console, for testing
+    Account Aggregator consent journeys.</p>
+
+  <!-- ============================ SAFETY ============================ -->
+  <h2 id="safety">What not to open</h2>
+
+  <div class="card danger">
+    <span class="pill">Read this first</span>
+    <p><strong>Open AA consent journeys and your own <code>localhost</code> dev server.
+      Nothing else.</strong></p>
+    <p>Not your email, not your bank, not a link someone sent you, not a login page
+      for anything you care about.</p>
+  </div>
+
+  <p>Every tab here is created with <code>webSecurity: false</code>. That is
+    deliberate — it is what lets a journey's cross-origin API calls work without
+    CORS headers, which is the entire point of the tool. But it also removes the
+    <strong>same-origin policy</strong>, the boundary that normally stops one site
+    from reading another.</p>
+
+  <p>With it off, script on any page loaded here can fetch any other origin
+    <em>using your cookies</em> and read the response back. A hostile page could
+    request your webmail or your bank's account page and read the HTML. Real Chrome
+    makes that impossible; this does not.</p>
+
+  <h3>Three settings make it worse</h3>
+  <table>
+    <tr>
+      <th style="width: 15em">Setting</th>
+      <th>What it costs you</th>
+    </tr>
+    <tr>
+      <td><code>allowRunningInsecureContent</code></td>
+      <td>An HTTPS page may pull in HTTP scripts, so anyone on your network can
+        inject code into a page that looks secure.</td>
+    </tr>
+    <tr>
+      <td><code>contextIsolation: false</code></td>
+      <td>Page script shares a world with the preload script, which is far closer
+        to code execution on your machine than a normal tab.</td>
+    </tr>
+    <tr>
+      <td><code>nodeIntegrationInSubFrames</code></td>
+      <td>The same applies inside nested iframes, not just the top document.</td>
+    </tr>
+  </table>
+
+  <p>All tabs also share <strong>one session and cookie jar</strong>, so a session
+    created in one tab is reachable from every other tab.</p>
+
+  <h3>So do not open</h3>
+  <ul>
+    <li>anything you are signed in to that matters — email, banking, cloud
+      consoles, source hosting, internal admin tools;</li>
+    <li>links from outside your own testing — chat, email, search results;</li>
+    <li>unfamiliar shortener links. The journey flow legitimately uses
+      <code>urlshortner.uat.ignosis.ai</code>, and that is fine because you know
+      where it came from.</li>
+  </ul>
+
+  <div class="card warn">
+    <p><strong>Two things that limit the damage.</strong> Nibble runs in its own
+      Electron session, so your system Chrome's cookies and logins are not
+      reachable from here — the exposure is limited to what you do inside Nibble.
+      And the API key in the console is stored in <code>localStorage</code> in
+      plaintext, so use a test key, never a production one.</p>
+    <p><strong>HAR exports are sensitive.</strong> They contain full request and
+      response bodies, including <code>ecreq</code> payloads, tokens and cookies,
+      with no redaction. They are written locally and never uploaded, but treat the
+      files as secrets.</p>
+  </div>
+
+  <!-- ============================ PINNING ============================ -->
+  <h2 id="pinning">Pinning Nibble to the taskbar</h2>
+
+  <div class="card danger">
+    <p><strong>Do not pin the window that <code>npm start</code> opens.</strong>
+      That process is Electron's generic runner with this project passed as an
+      argument. Pinning captures the executable but not the argument, so relaunching
+      it opens Electron's welcome screen instead of Nibble. If you have already
+      pinned it, right-click the icon and choose <em>Unpin from taskbar</em>.</p>
+  </div>
+
+  <p>To get a pinnable app, build one:</p>
+
+  <pre><code>npm run dist   # installer + portable, a few minutes
+npm run pack   # just release\win-unpacked\, much quicker</code></pre>
+
+  <h3>Option 1 — install it (best if you mostly use the tool)</h3>
+  <p>Run <code>release\Nibble Setup 1.0.0.exe</code>. It lets you choose the install
+    folder and adds Start-menu and desktop shortcuts, so Nibble behaves like any
+    other installed app. Pin it from the Start menu.</p>
+  <p>The catch: after changing code you must rebuild and re-run the installer for
+    the change to appear.</p>
+
+  <h3>Option 2 — pin the unpacked build (best if you are still editing)</h3>
+  <p>Pin <code>release\win-unpacked\Nibble.exe</code> directly. That path carries
+    <strong>no version number</strong>, so <code>npm run pack</code> overwrites the
+    same executable in place and your pinned shortcut keeps working. Close the app
+    before rebuilding, or electron-builder cannot overwrite the running file.</p>
+
+  <h3>Option 3 — pin the portable build</h3>
+  <p><code>release\Nibble 1.0.0.exe</code> runs from wherever it sits and installs
+    nothing. It pins fine, but the filename carries the version, so bumping to
+    1.0.1 breaks the pin.</p>
+
+  <div class="card">
+    <p><strong>Where your data lives.</strong> The AA list is in
+      <code>%APPDATA%\Nibble\nibble.db</code>, not next to the executable, so it
+      survives reinstalls and upgrades and is shared by the installed and unpacked
+      copies. Running unpackaged via <code>npm start</code> is the exception: it
+      uses <code>%APPDATA%\Electron</code> instead, so it has its own list.</p>
+    <p><strong>SmartScreen.</strong> The build is not code-signed, so Windows warns
+      on first run: <em>More info → Run anyway</em>. Signing needs a certificate and
+      nothing in the app requires it.</p>
+  </div>
+
+  <!-- ============================ SHORTCUTS ============================ -->
+  <h2 id="shortcuts">Keyboard shortcuts</h2>
+  <table>
+    <tr><th style="width: 12em">Keys</th><th>Action</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>New tab, caret in the URL bar</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close tab</td></tr>
+    <tr><td><kbd>F5</kbd> / <kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Reload</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd></td><td>Reload ignoring cache</td></tr>
+    <tr><td><kbd>F12</kbd></td><td>DevTools</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>API console</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>M</kbd></td><td>AA mapping</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Database</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>History</td></tr>
+    <tr><td><kbd>F1</kbd></td><td>This page</td></tr>
+  </table>
+
+  <!-- ============================ FOOTER ============================ -->
+  <footer>
+    <h2 id="credits">Built with</h2>
+    <div class="credits">
+      <div>
+        <h3>Written with AI assistance</h3>
+        <ul>
+          <li><strong>Kiro CLI</strong> — the agent this app was largely built and
+            debugged through, in the terminal</li>
+          <li><strong>Claude</strong> (Anthropic) — the model behind that agent</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Runtime</h3>
+        <ul>
+          <li><strong>Electron</strong> 31 — <code>WebContentsView</code>, the
+            multi-tab shell</li>
+          <li><strong>Chromium</strong> 126 / <strong>Node</strong> 20 — bundled by
+            Electron</li>
+          <li><strong>Chrome DevTools Protocol</strong> — per-tab network capture</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Libraries &amp; tooling</h3>
+        <ul>
+          <li><strong>node-sqlite3-wasm</strong> — the AA store, with no native
+            build step</li>
+          <li><strong>electron-builder</strong> — NSIS installer and portable exe</li>
+          <li><strong>7-Zip</strong> / <strong>NSIS</strong> — used by the packager</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Specifications</h3>
+        <ul>
+          <li><strong>HAR 1.2</strong> — the network export format</li>
+          <li><strong>Account Aggregator</strong> (ReBIT) consent flows — what this
+            tool exists to test</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:18px">Nibble is a local testing tool. It is not hardened,
+      not code-signed, and must never be put in front of real end users.</p>
+  </footer>
+</main>
+
+<script>
+  // The shell passes its resolved theme, because Nibble's light/dark choice is its
+  // own setting and deliberately does not touch Chromium's nativeTheme — so
+  // prefers-color-scheme here would report the OS, not the app.
+  const theme = new URLSearchParams(location.search).get('theme');
+  document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+</script>
+</body>
+</html>
