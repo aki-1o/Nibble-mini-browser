@@ -23,12 +23,11 @@ const {
 // api-panel.js, so a fresh install behaves exactly like the old build.
 // Name -> accountAggregatorId, and nothing else: that pair is all the app uses.
 const AA_SEED = [
-  ['SAAFE',             'saafe'],
-  ['SAAFE (preprod)',   'dashboard-aa-preprod'],
-  ['CAMS',              'AA00022277'],
-  ['ONEMONEY',          'onemoney'],
-  ['NADL',              'AA00023404'],
-  ['Anumati',           'Anumati'],
+  ['SAAFE',             'dashboard-aa-preprod'],
+  ['CAMS',              'AA00022222'],
+  ['ONEMONEY',          'onemoney-aa'],
+  ['NADL',              'AA00023403'],
+  ['ANUMATI',           'Anumati-UAT'],
   ['CookieJar (Finvu)', 'cookiejaraalive@finvu'],
 ];
 
@@ -231,7 +230,7 @@ const MIGRATIONS = [
       // The old id is matched explicitly so a value you edited yourself is left
       // alone — a migration must not overwrite a deliberate change.
       const FIX = [
-        ['ANUMATI',  'ANUMATI',  'AAServices/ANUMATI',  'Anumati',               'Anumati-UAT'],
+        ['ANUMATI',  'ANUMATI',  'AAServices/ANUMATI',  'ANUMATI ',               'ANUMATI -UAT'],
         ['FINVU',    'FINVU',    'AAServices/FINVU',    'cookiejaraalive@finvu', 'cookiejar-aa@finvu.in'],
         ['ONEMONEY', 'ONEMONEY', 'AAServices/ONEMONEY', 'onemoney',              'onemoney-aa'],
         ['SAAFE',    'SAAFE',    'AAServices/SAAFE',    'saafe',                 'dashboard-aa-preprod'],
@@ -428,6 +427,93 @@ const MIGRATIONS = [
           db.run('INSERT OR IGNORE INTO param_value (param_id, value) VALUES (?, ?)', [p.id, v]);
         }
       }
+    },
+  },
+  {
+    version: 8,
+    name: 'update AA ids for NADL, CAMS, ONEMONEY, SAAFE',
+    up(db) {
+      // Ensure SAAFE (preprod) doesn't conflict when SAAFE is set to dashboard-aa-preprod
+      const preprodRow = db.get("SELECT id FROM aa_mapping WHERE aa_name = 'SAAFE (preprod)' COLLATE NOCASE");
+      const saafeRow = db.get("SELECT id FROM aa_mapping WHERE aa_name = 'SAAFE' COLLATE NOCASE");
+      if (preprodRow && saafeRow) {
+        db.run("DELETE FROM aa_mapping WHERE id = ?", [preprodRow.id]);
+      } else if (preprodRow && !saafeRow) {
+        db.run("UPDATE aa_mapping SET aa_name = 'SAAFE' WHERE id = ?", [preprodRow.id]);
+      }
+
+      const TARGETS = [
+        ['SAAFE',    'dashboard-aa-preprod', 'SAAFE',    'SAAFE',    'AAServices/SAAFE',    'preprod'],
+        ['CAMS',     'AA00022222',           'CAMS',     'CAMS',     'AAServices/CAMS',     'prod'],
+        ['ONEMONEY', 'onemoney-aa',          'ONEMONEY', 'ONEMONEY', 'AAServices/ONEMONEY', 'prod'],
+        ['NADL',     'AA00023403',           'NADL',     'NADL',     'AAServices/NADL',     'prod'],
+      ];
+
+      for (const [name, aaId, code, aaclass, folder, env] of TARGETS) {
+        const existingWithId = db.get("SELECT id FROM aa_mapping WHERE aa_id = ? COLLATE NOCASE", [aaId]);
+        const existingWithName = db.get("SELECT id FROM aa_mapping WHERE aa_name = ? COLLATE NOCASE", [name]);
+
+        if (existingWithId && existingWithName && existingWithId.id !== existingWithName.id) {
+          db.run("DELETE FROM aa_mapping WHERE id = ?", [existingWithId.id]);
+        }
+
+        if (existingWithName) {
+          db.run(
+            `UPDATE aa_mapping
+                SET aa_id = ?, aa_code = ?, aaclass = ?, sdk_folder = ?, env = ?
+              WHERE id = ?`,
+            [aaId, code, aaclass, folder, env, existingWithName.id],
+          );
+        } else {
+          db.run(
+            `INSERT INTO aa_mapping (aa_name, aa_id, aa_code, aaclass, sdk_folder, env)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [name, aaId, code, aaclass, folder, env],
+          );
+        }
+      }
+    },
+  },
+  {
+    version: 9,
+    name: 're-seed aa_mapping if empty',
+    up(db) {
+      // If the table ended up empty (deleted rows, wiped DB, or fresh install that
+      // somehow skipped earlier seeds), put the canonical list back. Every INSERT
+      // uses OR IGNORE so it is safe to run against a database that already has
+      // some of these rows — nothing already present is touched.
+      const { n } = db.get('SELECT COUNT(*) AS n FROM aa_mapping');
+      if (n) return;
+
+      const FULL_SEED = [
+        ['SAAFE',             'dashboard-aa-preprod', 'SAAFE',    'SAAFE',    'AAServices/SAAFE',    'preprod'],
+        ['CAMS',              'AA00022222',            'CAMS',     'CAMS',     'AAServices/CAMS',     'prod'],
+        ['ONEMONEY',          'onemoney-aa',           'ONEMONEY', 'ONEMONEY', 'AAServices/ONEMONEY', 'prod'],
+        ['NADL',              'AA00023403',            'NADL',     'NADL',     'AAServices/NADL',     'prod'],
+        ['ANUMATI',            'Anumati-UAT',            'ANUMATI',  'ANUMATI',  'AAServices/ANUMATI',  'uat'],
+        ['CookieJar (Finvu)', 'cookiejaraalive@finvu', 'FINVU',    'FINVU',    'AAServices/FINVU',    'prod'],
+      ];
+
+      for (const [name, aaId, code, aaclass, folder, env] of FULL_SEED) {
+        db.run(
+          `INSERT OR IGNORE INTO aa_mapping (aa_name, aa_id, aa_code, aaclass, sdk_folder, env)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [name, aaId, code, aaclass, folder, env],
+        );
+      }
+    },
+  },
+  {
+    version: 10,
+    name: 'fix ANUMATI AAID to match SDK expectations',
+    up(db) {
+      // Update any existing ANUMATI records from 'ANUMATI' to 'Anumati-UAT'
+      // to match the SDK's utils.tsx mapping expectations
+      db.run(
+        `UPDATE aa_mapping 
+         SET aa_id = 'Anumati-UAT', env = 'uat' 
+         WHERE aa_name = 'ANUMATI' OR aa_id = 'ANUMATI'`,
+      );
     },
   },
 ];

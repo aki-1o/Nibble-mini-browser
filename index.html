@@ -821,6 +821,7 @@
     .editorTools { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .editorTools .spacer { flex: 1; }
     .editorTools .label { font-size: 12px; color: var(--muted); }
+    .bodyOption { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
 
     .editor {
       display: flex; border: 1px solid var(--line); border-radius: 6px;
@@ -849,6 +850,12 @@
       font-size: 12px; min-height: 33px; box-sizing: border-box;
     }
     #resMeta .spacer { flex: 1; }
+    #apiErrorMessage {
+      margin: 0 8px 6px; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 5px;
+      color: var(--ink); background: var(--surface-2);
+      font-size: 12px; line-height: 1.4;
+    }
     .pill { font-weight: 700; border-radius: 999px; padding: 2px 8px; color: #fff; background: var(--muted); }
     .pill.s2 { background: var(--ok); }
     .pill.s3 { background: var(--info); }
@@ -893,6 +900,8 @@
       flex: 1; min-width: 0; font-size: 12px;
       font-family: ui-monospace, Consolas, monospace;
     }
+
+
 
     /* ---------- fiuConfig panel ---------- */
     /* Status badge: shows "loaded", "not found", or "param missing" */
@@ -1121,6 +1130,10 @@
           <div class="editorTools">
             <span class="label">raw &middot; JSON</span>
             <div class="spacer"></div>
+            <label class="bodyOption" title="Applied only to POST /api/v2/accounts/discover">
+              <input id="updateSecondaryMobile" type="checkbox" checked />
+              update_secondary_mobile
+            </label>
             <span id="bodyErr" class="err"></span>
             <button id="beautify" class="tiny">Beautify</button>
           </div>
@@ -1146,6 +1159,9 @@
         <section class="pane" data-pane="vars" role="tabpanel" hidden>
           <div class="formCard">
             <div class="formCardHead">Variables</div>
+            <p id="deviceFingerprintStatus" class="hint" role="status">
+              Device ID is generated locally and only sent if you use {{device_Id}}.
+            </p>
             <table class="kv">
               <thead><tr><th>Name</th><th>Value</th><th class="act"></th></tr></thead>
               <tbody id="varRows"></tbody>
@@ -1189,7 +1205,9 @@
               <code>AAServices/$REACT_APP_AACLASS</code>, so one deployed host serves one
               AA. If the build's AA does not match the id sent at init,
               <code>decodeParam</code> fails. The <code>?aaId</code> query param does not
-              switch AA logic; it only picks the S3 config path and branding.</p>
+              switch AA logic; it only picks the S3 config path and branding. The selected
+              AA's short code is applied to the journey URL as <code>aaId</code>; it is
+              different from <code>accountAggregatorId</code>.</p>
           </div>
         </section>
 
@@ -1332,6 +1350,7 @@
           <div class="spacer"></div>
           <button id="copyRes" class="tiny">Copy</button>
         </div>
+        <div id="apiErrorMessage" role="status" hidden></div>
         <nav class="tabs small" role="tablist" aria-label="Response sections">
           <button data-rtab="body" class="active" role="tab" aria-selected="true">Body</button>
           <button data-rtab="headers" role="tab" aria-selected="false">Headers</button>
@@ -1349,6 +1368,7 @@
           <button id="openJourney" class="tiny primary"
                   title="Open this URL as-is in the page view">Open</button>
         </div>
+
       </div>
       </div><!-- /#panelApi -->
 
@@ -1486,6 +1506,7 @@
   </div>
 
   <script src="renderer.js"></script>
+  <script src="node_modules/@fingerprintjs/fingerprintjs/dist/fp.umd.min.js"></script>
   <script src="api-panel.js"></script>
   <script src="aa-mapping.js"></script>
   <script src="tenant-panel.js"></script>

@@ -18,6 +18,7 @@
   const addHeader   = document.getElementById('addHeader');
   const varRows     = document.getElementById('varRows');
   const addVar      = document.getElementById('addVar');
+  const deviceFingerprintStatus = document.getElementById('deviceFingerprintStatus');
 
   const injRows     = document.getElementById('injRows');
   const injAdd      = document.getElementById('injAdd');
@@ -34,8 +35,10 @@
   const bodyGutter  = document.getElementById('bodyGutter');
   const bodyErr     = document.getElementById('bodyErr');
   const beautifyBtn = document.getElementById('beautify');
+  const updateSecondaryMobile = document.getElementById('updateSecondaryMobile');
 
   const resPill     = document.getElementById('resPill');
+  const apiErrorMessage = document.getElementById('apiErrorMessage');
   const resTime     = document.getElementById('resTime');
   const resSize     = document.getElementById('resSize');
   const resPre      = document.getElementById('resPre');
@@ -69,6 +72,7 @@
   const BASE_VAR = 'baseUrl';
   const PHONE_VAR = 'phoneNumber';
   const TRACKING_VAR = 'trackingId';
+  const DEVICE_ID_VAR = 'device_Id';
 
   // Seeded on a first run, and back-filled for an existing install that predates
   // one of them — a token with no variable row is unresolved, which blocks Send.
@@ -96,7 +100,10 @@
         // ,"IGNOSIS_FIP_UAT"
     ],
     "redirectionUrl": "http://google.com",
-    "accountAggregatorId": "onemoney"
+    "accountAggregatorId": "dashboard-aa-preprod" // SAAFE
+    // "accountAggregatorId": "AA00022222" // CAMS
+    // "accountAggregatorId": "onemoney-aa" // ONEMONEY
+    // "accountAggregatorId": "AA00023403" // NADL
 }`;
 
   /* ---------------------------- persistence ---------------------------- */
@@ -474,6 +481,22 @@
     persistRows();
   }
 
+  async function generateDeviceFingerprint() {
+    deviceFingerprintStatus.textContent = 'Generating device fingerprint…';
+    try {
+      const agent = await window.FingerprintJS.load();
+      const result = await agent.get();
+      if (!result.visitorId) throw new Error('FingerprintJS returned an empty device ID.');
+      upsertVar(DEVICE_ID_VAR, result.visitorId);
+      deviceFingerprintStatus.textContent =
+        'Device ID ready. Use {{device_Id}} in a request when needed.';
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      deviceFingerprintStatus.textContent = `Could not generate device ID: ${message}`;
+      console.error('Device fingerprint generation failed:', err);
+    }
+  }
+
   function currentVarValue(name) {
     for (const { key, value } of readRows(varRows)) {
       if (key.trim() === name) return value;
@@ -629,12 +652,11 @@
   // Ids are from AccountAggregatorIds.java / AAFolderMappings.java. They must match
   // the AA the SDK host was built with, or decodeParam fails.
   let AA_OPTIONS = [
-    { name: 'SAAFE (preprod)', id: 'dashboard-aa-preprod', aaclass: 'SAAFE', sdkFolder: 'AAServices/SAAFE', env: 'preprod' },
-    { name: 'SAAFE', id: 'saafe', aaclass: 'SAAFE', sdkFolder: 'AAServices/SAAFE', env: 'prod' },
-    { name: 'CAMS', id: 'AA00022277', aaclass: 'CAMS', sdkFolder: 'AAServices/CAMS', env: 'prod' },
-    { name: 'ONEMONEY', id: 'onemoney', aaclass: 'ONEMONEY', sdkFolder: 'AAServices/ONEMONEY', env: 'prod' },
-    { name: 'NADL', id: 'AA00023404', aaclass: 'NADL', sdkFolder: 'AAServices/NADL', env: 'prod' },
-    { name: 'Anumati', id: 'Anumati', aaclass: 'ANUMATI', sdkFolder: 'AAServices/ANUMATI', env: 'prod' },
+    { name: 'SAAFE', id: 'dashboard-aa-preprod', aaclass: 'SAAFE', sdkFolder: 'AAServices/SAAFE', env: 'preprod' },
+    { name: 'CAMS', id: 'AA00022222', aaclass: 'CAMS', sdkFolder: 'AAServices/CAMS', env: 'prod' },
+    { name: 'ONEMONEY', id: 'onemoney-aa', aaclass: 'ONEMONEY', sdkFolder: 'AAServices/ONEMONEY', env: 'prod' },
+    { name: 'NADL', id: 'AA00023403', aaclass: 'NADL', sdkFolder: 'AAServices/NADL', env: 'prod' },
+    { name: 'ANUMATI', id: 'Anumati-UAT', aaclass: 'ANUMATI', sdkFolder: 'AAServices/ANUMATI', env: 'uat' },
     { name: 'CookieJar (Finvu)', id: 'cookiejaraalive@finvu', aaclass: 'FINVU', sdkFolder: 'AAServices/FINVU', env: 'prod' },
   ];
   const AA_DEFAULT = 'dashboard-aa-preprod';
@@ -680,9 +702,30 @@
     }
   }
 
+  function applySelectedAaToJourneyUrl(raw) {
+    const selected = AA_OPTIONS.find((option) => option.id === aaSelect.value);
+    const aaId = selected && (selected.code || selected.aaclass);
+    const value = String(raw || '').trim();
+    if (!aaId || !value) return value;
+
+    try {
+      const absolute = /^https?:\/\//i.test(value) ? value : `http://${value}`;
+      const url = new URL(absolute);
+      url.searchParams.set('aaId', aaId.toLowerCase());
+      return url.toString();
+    } catch {
+      return value;
+    }
+  }
+
   aaSelect.addEventListener('change', () => {
     save(K.aa, aaSelect.value);
     refreshAaDisplay();
+    const updatedJourneyUrl = applySelectedAaToJourneyUrl(journeyUrl.value);
+    if (updatedJourneyUrl !== journeyUrl.value) {
+      journeyUrl.value = updatedJourneyUrl;
+      save(K.journey, updatedJourneyUrl);
+    }
   });
 
   /* ---------------------------- response rendering ---------------------------- */
@@ -709,10 +752,56 @@
   function showBody(text, asJson) {
     lastShownText = text;
     resPre.innerHTML = asJson ? highlightJson(text) : escapeHtml(text);
+    showFriendlyApiError(text);
     const lines = text.split('\n').length;
     let g = '';
     for (let i = 1; i <= lines; i++) g += i + '\n';
     resGutter.textContent = g;
+  }
+
+  const API_ERROR_MESSAGES = new Map([
+    ['131', 'Registration Failed.'],
+    ['600', 'An account exists with this number.'],
+    ['690', 'VUA already taken.'],
+    ['227', 'Invalid OTP.'],
+    ['608', 'Mobile number validation failed.'],
+    ['10045', 'The requested User VUA is already in use. Please choose a different User VUA.'],
+    ['3022', 'You have not signed up with us yet. Please visit the previous screen to sign up.'],
+    ['-611', 'Invalid API key.'],
+    ['5004', 'The device ID in the request does not match the device ID associated with the access token.'],
+    ['5003', 'This device has been logged out. Please log in again to continue.'],
+    ['USER_VUA_ALREADY_EXISTS', 'The requested User VUA is already in use. Please choose a different User VUA.'],
+    ['DEVICE_ID_MISMATCH', 'The device ID in the request does not match the device ID associated with the access token.'],
+    ['DEVICE_LOGGED_OUT', 'This device has been logged out. Please log in again to continue.'],
+  ]);
+
+  function showFriendlyApiError(text) {
+    apiErrorMessage.hidden = true;
+    apiErrorMessage.textContent = '';
+    let response;
+    try {
+      response = JSON.parse(text);
+    } catch {
+      return;
+    }
+    const findCode = (value, seen = new Set()) => {
+      if (!value || typeof value !== 'object' || seen.has(value)) return '';
+      seen.add(value);
+      for (const [key, nested] of Object.entries(value)) {
+        if (/^(?:error_?code|code)$/i.test(key) && (typeof nested === 'string' || typeof nested === 'number')) {
+          const code = String(nested).trim();
+          if (API_ERROR_MESSAGES.has(code)) return code;
+        }
+        const found = findCode(nested, seen);
+        if (found) return found;
+      }
+      return '';
+    };
+    const code = findCode(response);
+    if (code) {
+      apiErrorMessage.textContent = `API error ${code}: ${API_ERROR_MESSAGES.get(code)}`;
+      apiErrorMessage.hidden = false;
+    }
   }
 
   resPre.addEventListener('scroll', () => { resGutter.scrollTop = resPre.scrollTop; });
@@ -800,7 +889,14 @@
     if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
 
     const method = methodSel.value;
-
+    const isAccountDiscovery = method === 'POST' && (() => {
+      try {
+        return new URL(url).pathname.replace(/\/+$/, '')
+          .toLowerCase().endsWith('/api/v2/accounts/discover');
+      } catch {
+        return false;
+      }
+    })();
     // Body: strip comments/trailing commas, then validate.
     const rawBody = bodyText.value;
     let body = '';
@@ -828,10 +924,15 @@
       const aaId = aaSelect.value;
       const isPlainObject = parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody);
       if (aaId && isPlainObject) parsedBody.accountAggregatorId = aaId;
+      if (isAccountDiscovery && isPlainObject) {
+        parsedBody.update_secondary_mobile = updateSecondaryMobile.checked;
+      }
 
       // Only re-serialise when something actually changed, so an untouched body is
       // sent exactly as written rather than silently reformatted.
-      const changed = keyed.applied.length > 0 || (aaId && isPlainObject);
+      const changed = keyed.applied.length > 0
+        || (aaId && isPlainObject)
+        || (isAccountDiscovery && isPlainObject);
       body = changed ? JSON.stringify(parsedBody, null, 2) : cleaned;
 
       if (keyed.skipped.length) {
@@ -849,7 +950,23 @@
       headers[k] = applyVars(value, map, missing);
     }
     const keyVal = applyVars(apiKeyInput.value, map, missing).trim();
-    if (keyVal) headers.API_KEY = keyVal;
+    if (keyVal) {
+      if (isAccountDiscovery) headers['X-API-KEY'] = keyVal;
+      else headers.API_KEY = keyVal;
+    }
+    if (isAccountDiscovery) {
+      const deviceId = (map.get('device_Id') || '').trim();
+      if (!deviceId) {
+        bodyErr.textContent = 'Account Discovery request not sent — set the device_Id variable first.';
+        setPill('err', 'ERR');
+        resTime.textContent = '';
+        resSize.textContent = '';
+        showBody('Account Discovery request not sent — device_Id is required. Wait for fingerprint generation or enter the device ID in Variables.', false);
+        return;
+      }
+      headers['X-Device-Id'] = deviceId;
+      headers['transaction-id'] = window.crypto.randomUUID();
+    }
     if (body && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-type')) {
       headers['Content-Type'] = 'application/json';
     }
@@ -883,7 +1000,6 @@
     resTime.textContent = `${res.timeMs} ms`;
     resSize.textContent = fmtSize(res.size || 0);
     renderHeaders(res.headers);
-
     let parsed = null;
     let pretty = res.bodyText || '';
     try {
@@ -900,13 +1016,14 @@
 
     const found = parsed ? findJourneyUrl(parsed) : null;
     if (found) {
-      journeyUrl.value = found;
-      save(K.journey, found);
+      const selectedJourneyUrl = applySelectedAaToJourneyUrl(found);
+      journeyUrl.value = selectedJourneyUrl;
+      save(K.journey, selectedJourneyUrl);
       // Auto-open, so Send is the only click needed. Gated on a 2xx: an error
       // response (e.g. a 404 whose body still carries some URL) must not navigate
       // away. The Open button stays for re-opening or opening a non-2xx result by
       // hand. openJourney() is the same path the button uses.
-      if (s >= 200 && s < 300) openJourney(found);
+      if (s >= 200 && s < 300) openJourney(selectedJourneyUrl);
     }
   }
 
@@ -1144,8 +1261,10 @@
   // the redirect itself, which leaves the real journey URL (with its ?ecreq=...
   // query) in the top URL bar — ready for the "→ local" button up there.
   function openJourney(u) {
-    const v = (u != null ? u : journeyUrl.value).trim();
+    const v = applySelectedAaToJourneyUrl(u != null ? u : journeyUrl.value);
     if (!v) return;
+    journeyUrl.value = v;
+    save(K.journey, v);
     window.NibbleNav.navigate(v);
   }
 
@@ -1187,12 +1306,25 @@
 
   /* ---------------------------- startup ---------------------------- */
 
+  // If the stored schema version doesn't match, wipe the panel's own keys so
+  // all defaults re-seed cleanly. User data outside K.* (tabs, layout, etc.)
+  // is untouched. Bump PANEL_VERSION whenever a new default needs to be forced.
+  const PANEL_VERSION = '3';
+  const K_VER = 'nibble.api.version';
+  if (localStorage.getItem(K_VER) !== PANEL_VERSION) {
+    Object.values(K).forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem(K_VER, PANEL_VERSION);
+  }
+
   methodSel.value = load(K.method, 'POST');
   apiKeyInput.value = load(K.apiKey, '');
-  // An empty saved body counts as "no body yet" and gets the default back. Only a
-  // body you have actually written is preserved.
+  // An empty saved body, or the generic placeholder, counts as "no body yet"
+  // and gets the default back. Only a body you have actually written is preserved.
   const savedBody = localStorage.getItem(K.body);
-  bodyText.value = (savedBody === null || savedBody.trim() === '') ? DEFAULT_BODY : savedBody;
+  const isPlaceholderBody = savedBody !== null &&
+    savedBody.replace(/\s/g, '') === '{"key":"value"}';
+  bodyText.value = (savedBody === null || savedBody.trim() === '' || isPlaceholderBody)
+    ? DEFAULT_BODY : savedBody;
   save(K.body, bodyText.value);
   journeyUrl.value = load(K.journey, '');
 
@@ -1203,14 +1335,38 @@
 
   // Variables: seed the two the shipped defaults refer to. An existing install
   // keeps whatever it has; a missing one is back-filled rather than left blank,
-  // because a token with no row is unresolved and blocks Send.
+  // because a token with no row is unresolved and blocks Send. If a seed var
+  // exists but its value is blank, reset it to the default value.
   const savedVars = loadJson(K.vars, null);
   if (savedVars) {
     for (const r of savedVars) makeRow(varRows, r.key, r.value);
   }
   const haveVar = (name) => readRows(varRows).some((r) => r.key.trim() === name);
+  const getVarRow = (name) => Array.from(varRows.querySelectorAll('tr')).find((tr) => {
+    const [k] = tr.querySelectorAll('input');
+    return k.value.trim() === name;
+  });
   for (const [name, value] of SEED_VARS) {
-    if (!haveVar(name)) makeRow(varRows, name, value);
+    if (!haveVar(name)) {
+      makeRow(varRows, name, value);
+    } else {
+      // Row exists but value is blank — reset to default
+      const row = getVarRow(name);
+      if (row) {
+        const [, v] = row.querySelectorAll('input');
+        if (!v.value.trim()) v.value = value;
+      }
+    }
+  }
+  const deviceIdRow = Array.from(varRows.querySelectorAll('tr')).find((tr) => {
+    const [key] = tr.querySelectorAll('input');
+    return key.value.trim() === DEVICE_ID_VAR;
+  });
+  if (deviceIdRow) {
+    const [, value] = deviceIdRow.querySelectorAll('input');
+    value.value = '';
+  } else {
+    makeRow(varRows, DEVICE_ID_VAR, '');
   }
 
   if (!headerRows.children.length) makeRow(headerRows);
@@ -1218,15 +1374,20 @@
   // Whatever the rows ended up as, persist them so the seeded values survive a
   // restart, and draw the body chips from them.
   persistRows();
+  generateDeviceFingerprint();
 
   // The inject form always starts with one empty pair.
   makeInjRow();
 
   buildAaOptions();
   const savedAa = load(K.aa, null);
-  const validAa = savedAa !== null
-    && (savedAa === '' || AA_OPTIONS.some((o) => o.id === savedAa));
+  // null  → first run, use default
+  // ''    → previously saved as "don't set" / blank — also fall back to default
+  // valid id → honour the user's choice
+  const validAa = savedAa !== null && savedAa !== ''
+    && AA_OPTIONS.some((o) => o.id === savedAa);
   aaSelect.value = validAa ? savedAa : AA_DEFAULT;
+  save(K.aa, aaSelect.value);
   refreshAaDisplay();
 
   // The dropdown's real contents live in the aa_mapping table. Startup above is
@@ -1237,10 +1398,12 @@
   window.__nibbleAaReload = async function reloadAa() {
     const res = await nb.aaMap.list();
     if (!res || !res.ok) return;   // unreadable DB: keep the fallback list
+    if (!res.rows || !res.rows.length) return;  // empty DB: keep the fallback list
 
     AA_OPTIONS = res.rows.map((r) => ({
       name: r.name,
       id: r.aaId,
+      code: r.code || '',
       aaclass: r.aaclass || '',
       sdkFolder: r.sdkFolder || '',
       env: r.env || '',
@@ -1249,7 +1412,9 @@
     const keep = aaSelect.value;   // don't lose the user's pick on a redraw
     aaSelect.textContent = '';     // buildAaOptions appends, so clear first
     buildAaOptions();
-    aaSelect.value = AA_OPTIONS.some((o) => o.id === keep) ? keep : '';
+    // If the kept value doesn't exist in the new list, fall back to default
+    const validKeep = AA_OPTIONS.some((o) => o.id === keep);
+    aaSelect.value = validKeep ? keep : (AA_OPTIONS.some((o) => o.id === AA_DEFAULT) ? AA_DEFAULT : '');
     save(K.aa, aaSelect.value);
     refreshAaDisplay();
   };
