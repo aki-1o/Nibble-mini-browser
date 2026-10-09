@@ -34,6 +34,7 @@
       "api-panel.js",
       "aa-mapping.js",
       "tenant-panel.js",
+      "fiuConfig-panel.js",
       "package.json",
       "assets/**"
     ],
@@ -63,6 +64,7 @@
     }
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^5.2.0",
     "node-sqlite3-wasm": "^0.8.60"
   }
 }
